@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { LogoutDialog } from "./LogoutDialog";
 
 function initials(email: string) {
   const name = (email.split("@")[0] ?? "").trim();
@@ -12,9 +13,9 @@ function initials(email: string) {
 }
 
 export function AccountMenu() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   const label = useMemo(() => initials(user?.email ?? ""), [user?.email]);
@@ -51,7 +52,7 @@ export function AccountMenu() {
             {user?.email ?? ""}
           </div>
           <Link to="/orders" className="sh-dropdownItem" role="menuitem" onClick={() => setOpen(false)}>
-            Past orders
+            My purchases
           </Link>
           <Link to="/account/nfts" className="sh-dropdownItem" role="menuitem" onClick={() => setOpen(false)}>
             NFT certificates
@@ -61,17 +62,15 @@ export function AccountMenu() {
             className="sh-dropdownItem"
             role="menuitem"
             onClick={() => {
-              void (async () => {
-                setOpen(false);
-                await logout();
-                navigate("/");
-              })();
+              setOpen(false);
+              setConfirmLogout(true);
             }}
           >
-            Logout
+            Sign out
           </button>
         </div>
       ) : null}
+      {confirmLogout ? <LogoutDialog onClose={() => setConfirmLogout(false)} /> : null}
     </div>
   );
 }

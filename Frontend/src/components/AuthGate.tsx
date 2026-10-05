@@ -4,9 +4,13 @@ import { startGoogleZkLogin } from "../api/zklogin";
 export function AuthGate({
   title = "Continue with Google",
   subtitle = "Use Google to sign in or create your account.",
+  appearance = "card",
+  returnTo,
 }: {
   title?: string;
   subtitle?: string;
+  appearance?: "card" | "plain";
+  returnTo?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +19,7 @@ export function AuthGate({
     setLoading(true);
     setError(null);
     try {
-      await startGoogleZkLogin(window.location.pathname + window.location.search);
+      await startGoogleZkLogin(returnTo ?? window.location.pathname + window.location.search);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Google sign-in failed");
       setLoading(false);
@@ -23,9 +27,13 @@ export function AuthGate({
   }
 
   return (
-    <div className="sh-card" style={{ padding: 16 }}>
-      <h2 style={{ margin: 0, fontSize: 16, color: "var(--fg)", fontWeight: 900 }}>{title}</h2>
-      <p style={{ marginTop: 8, marginBottom: 0, color: "var(--muted-fg)", fontSize: 13 }}>{subtitle}</p>
+    <div className={appearance === "card" ? "sh-card" : "om-login-action"} style={appearance === "card" ? { padding: 16 } : undefined}>
+      {appearance === "card" ? (
+        <>
+          <h2 style={{ margin: 0, fontSize: 16, color: "var(--fg)", fontWeight: 900 }}>{title}</h2>
+          <p style={{ marginTop: 8, marginBottom: 0, color: "var(--muted-fg)", fontSize: 13 }}>{subtitle}</p>
+        </>
+      ) : null}
 
       {error ? <p style={{ marginBottom: 0, color: "crimson", fontSize: 13 }}>{error}</p> : null}
 
@@ -36,7 +44,7 @@ export function AuthGate({
         className="sh-btn sh-btnPrimary"
         style={{
           width: "100%",
-          marginTop: 12,
+          marginTop: appearance === "card" ? 12 : 0,
           cursor: loading ? "not-allowed" : "pointer",
           opacity: loading ? 0.6 : 1,
           display: "flex",
@@ -66,9 +74,11 @@ export function AuthGate({
         {loading ? "Redirecting to Google…" : "Continue with Google"}
       </button>
 
-      <p style={{ margin: "8px 0 0", fontSize: 11, color: "var(--muted-fg)", textAlign: "center" }}>
-        Google sign-in also creates the wallet used for bowl certificates.
-      </p>
+      {appearance === "card" ? (
+        <p style={{ margin: "8px 0 0", fontSize: 11, color: "var(--muted-fg)", textAlign: "center" }}>
+          Google sign-in also creates the wallet used for bowl certificates.
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -61,7 +61,6 @@ export function ProductPage() {
   const selectedVariant =
     (selectedVariantId ? variants.find((v) => v.id === selectedVariantId) : null) ?? variants[0] ?? null;
   const canBuy = !!selectedVariant?.availableForSale;
-  const isInCart = selectedVariant?.id ? cart.ids.has(selectedVariant.id) : false;
   const maxQty =
     selectedVariant?.availableForSale === false
       ? 0
@@ -173,7 +172,6 @@ export function ProductPage() {
           {/* Info */}
           <div className="om-pdp-info">
             <h1 className="om-pdp-title">{product.title}</h1>
-            {product.description ? <p className="om-pdp-desc">{product.description}</p> : null}
             <div className="om-pdp-price om-serif">{formatMoney(displayAmount, currency)}</div>
 
             {showVariants ? (
@@ -216,22 +214,18 @@ export function ProductPage() {
                   +
                 </button>
               </div>
-              <button type="button" className="om-addbtn" disabled={!canBuy} onClick={addToCart}>
-                {canBuy ? (isInCart ? "Add more" : "Add to cart") : "Sold out"}
+              <button
+                type="button"
+                className="om-addbtn"
+                disabled={!canBuy}
+                onClick={() => {
+                  addToCart();
+                  navigate("/checkout");
+                }}
+              >
+                {canBuy ? "Buy now" : "Sold out"}
               </button>
             </div>
-
-            <button
-              type="button"
-              className="om-buybtn"
-              disabled={!canBuy}
-              onClick={() => {
-                addToCart();
-                navigate("/checkout");
-              }}
-            >
-              Buy now
-            </button>
 
             <div className="om-pdp-meta">
               <div>
@@ -244,16 +238,15 @@ export function ProductPage() {
               </div>
             </div>
 
-            <div className="om-details">
-              <details open>
-                <summary>About this product<span aria-hidden="true">−</span></summary>
-                <div className="om-details-body">
-                  <p style={{ margin: 0 }}>{product.description || "No description provided."}</p>
-                </div>
-              </details>
-            </div>
           </div>
         </section>
+
+        {product.description ? (
+          <section className="om-shell om-product-story" aria-labelledby="om-product-story-title">
+            <h2 id="om-product-story-title">About this product</h2>
+            <p>{product.description}</p>
+          </section>
+        ) : null}
 
         {/* Related */}
         {related.length > 0 ? (

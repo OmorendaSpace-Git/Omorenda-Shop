@@ -1,200 +1,181 @@
-// import { useEffect, useMemo, useState } from "react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { listOrders, type Order } from "../api/orders";
-import { StoreHeader } from "../components/StoreHeader";
-import { StoreFooter } from "../components/StoreFooter";
+import { listOrders, type Order, type OrderItem } from "../api/orders";
 import { useAuth } from "../auth/AuthContext";
+import { useCart } from "../cart/useCart";
+import type { CartItem } from "../cart/types";
 import { AuthGate } from "../components/AuthGate";
+import { StoreFooter } from "../components/StoreFooter";
+import { StoreHeader } from "../components/StoreHeader";
 
+type ProductMeta = { imageUrl: string | null; productId: string; productHandle: string };
 type ProductsResponse = {
   products: Array<{
     id: string;
-    title: string;
-    images: Array<{ url: string; altText: string | null }>;
-    variants: Array<{
-      id: string;
-      title: string;
-      price?: { amount: string; currencyCode: string };
-    }>;
+    handle: string;
+    images: Array<{ url: string }>;
+    variants: Array<{ id: string }>;
   }>;
 };
 
 function formatMoney(amount: string, currency: string): string {
-  const num = Number(amount);
-  if (Number.isFinite(num)) return `${num.toFixed(2)} ${currency}`;
-  return `${amount} ${currency}`;
+  const value = Number(amount);
+  if (!Number.isFinite(value)) return `${amount} ${currency}`;
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value);
+  } catch {
+    return `${amount} ${currency}`;
+  }
+}
+
+function cartItem(order: Order, item: OrderItem, meta?: ProductMeta): Omit<CartItem, "quantity"> {
+  return {
+    productId: meta?.productId ?? "unknown",
+    productHandle: meta?.productHandle ?? "",
+    title: item.title ?? "Purchased item",
+    imageUrl: meta?.imageUrl ?? null,
+    currency: order.currency,
+    unitAmount: Number(item.unitPrice),
+    variantGid: item.shopifyVariantGid,
+    variantTitle: item.title ?? "Variant",
+    availableForSale: true,
+    quantityAvailable: null,
+  };
 }
 
 export function OrdersPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const cart = useCart();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [variantMeta, setVariantMeta] = useState<Record<string, { imageUrl: string | null; productTitle: string | null }>>(
-    {},
-  );
-
-  async function fetchProducts(limit = 250): Promise<ProductsResponse> {
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8001/api";
-    const res = await fetch(`${API_BASE_URL}/products?limit=${limit}`);
-    if (!res.ok) throw new Error(`Failed to load products (${res.status})`);
-    return (await res.json()) as ProductsResponse;
-  }
-
-  async function load() {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await listOrders();
-      setOrders(data);
-
-      try {
-        const products = await fetchProducts(250);
-        const meta: Record<string, { imageUrl: string | null; productTitle: string | null }> = {};
-        for (const p of products.products ?? []) {
-          const imageUrl = p.images?.[0]?.url ?? null;
-          for (const v of p.variants ?? []) {
-            meta[v.id] = { imageUrl, productTitle: p.title ?? null };
-          }
-        }
-        setVariantMeta(meta);
-      } catch {
-        // Product images are optional metadata; order history should still render.
-        setVariantMeta({});
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load orders");
-      setOrders([]);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [variantMeta, setVariantMeta] = useState<Record<string, ProductMeta>>({});
 
   useEffect(() => {
-    if (isAuthenticated) {
-      void load();
-    } else {
+    if (!isAuthenticated) {
       setOrders([]);
+      setVariantMeta({});
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await listOrders();
+        if (cancelled) return;
+        setOrders(data);
+
+        try {
+          const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8001/api";
+          const response = await fetch(`${apiBase}/products?limit=250`);
+          if (!response.ok) throw new Error("Product images unavailable");
+          const { products } = (await response.json()) as ProductsResponse;
+          const meta: Record<string, ProductMeta> = {};
+          for (const product of products ?? []) {
+            for (const variant of product.variants ?? []) {
+              meta[variant.id] = {
+                imageUrl: product.images?.[0]?.url ?? null,
+                productId: product.id,
+                productHandle: product.handle,
+              };
+            }
+          }
+          if (!cancelled) setVariantMeta(meta);
+        } catch {
+          if (!cancelled) setVariantMeta({});
+        }
+      } catch (cause) {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : "Failed to load purchases");
+          setOrders([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => { cancelled = true; };
   }, [isAuthenticated]);
 
   return (
     <div className="om-page">
       <StoreHeader announce="Wild-harvested Himalayan botanicals — shipped worldwide." />
       <main className="om-main">
-        <div className="om-shell om-pagehead">
-          <div className="om-pagehead-top">
-            <Link to="/shop" className="om-continue">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5" /><path d="m11 6-6 6 6 6" /></svg>
-              Back to shop
-            </Link>
-            {isAuthenticated ? <span className="om-pagehead-email">{user?.email}</span> : null}
-          </div>
-          <h1>Your orders</h1>
+        <div className="om-shell om-listing-head">
+          <nav className="om-breadcrumb" aria-label="Breadcrumb">
+            <Link to="/">Home</Link><span>/</span><span aria-current="page">My purchases</span>
+          </nav>
+          <h1>My purchases</h1>
+          <p>{isAuthenticated ? `Orders for ${user?.email ?? "your account"}` : "Sign in to see your orders and buy your favorites again."}</p>
         </div>
 
-        <div className="om-shell om-block">
+        <div className="om-shell om-purchases-body">
+          {authLoading ? <p className="om-state">Loading your account…</p> : null}
           {!authLoading && !isAuthenticated ? (
-            <div style={{ marginBottom: 12, maxWidth: 460 }}>
-              <AuthGate title="Sign in to view orders" subtitle="Continue with Google to see your order history." />
+            <div className="om-purchases-gate">
+              <AuthGate appearance="plain" />
+            </div>
+          ) : null}
+          {isAuthenticated && loading ? <p className="om-state">Loading purchases…</p> : null}
+          {isAuthenticated && error ? <p className="om-error">{error}</p> : null}
+          {isAuthenticated && !loading && !error && orders.length === 0 ? (
+            <div className="om-purchases-empty">
+              <h2>No purchases yet</h2>
+              <p>When you place an order, you’ll find it here.</p>
+              <Link to="/shop" className="om-btn om-btn-primary">Explore the shop</Link>
             </div>
           ) : null}
 
-          {loading ? <p className="om-state">Loading…</p> : null}
-          {error ? <p className="om-error">{error}</p> : null}
-
-          {!loading && !error && orders.length === 0 && isAuthenticated ? (
-            <p style={{ color: "var(--om-muted)", fontWeight: 600 }}>No orders found.</p>
-          ) : null}
-
-          <div style={{ display: "grid", gap: 12 }}>
-        {orders.map((o) => (
-          <article key={o.id} className="sh-card" style={{ padding: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <div style={{ minWidth: 240 }}>
-                <div style={{ fontSize: 12, color: "var(--muted-fg)", fontWeight: 900 }}>Order</div>
-                <div style={{ fontWeight: 950, color: "var(--fg)" }}>
-                  <code>{o.id}</code>
-                </div>
-                <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted-fg)" }}>
-                  {new Date(o.createdAt).toLocaleString()}
-                </div>
-              </div>
-              <div style={{ minWidth: 180 }}>
-                <div style={{ fontSize: 12, color: "var(--muted-fg)", fontWeight: 900 }}>Status</div>
-                <div style={{ fontWeight: 950, color: "var(--fg)" }}>{o.status}</div>
-              </div>
-              <div style={{ minWidth: 180, textAlign: "right" }}>
-                <div style={{ fontSize: 12, color: "var(--muted-fg)", fontWeight: 900 }}>Total</div>
-                <div style={{ fontWeight: 950, color: "var(--fg)" }}>{formatMoney(o.total, o.currency)}</div>
-              </div>
-            </div>
-
-            <div style={{ marginTop: 10, borderTop: "1px solid rgba(31, 41, 46, 0.08)", paddingTop: 10 }}>
-              <div style={{ fontSize: 12, color: "var(--muted-fg)", marginBottom: 6 }}>
-                Stripe session: <code>{o.stripeSessionId}</code>
-              </div>
-              {o.shopifyOrderId ? (
-                <div style={{ fontSize: 12, color: "var(--muted-fg)", marginBottom: 6 }}>
-                  Shopify order: <code>{o.shopifyOrderId}</code>
-                </div>
-              ) : null}
-              <div style={{ display: "grid", gap: 10 }}>
-                {o.items.map((it) => (
-                  <div
-                    key={it.id}
-                    style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13, color: "var(--fg)" }}
-                  >
-                    <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0, flex: "1 1 auto" }}>
-                      <div
-                        style={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 12,
-                          background: "rgba(13, 150, 136, 0.06)",
-                          border: "1px solid rgba(31, 41, 46, 0.08)",
-                          overflow: "hidden",
-                          flex: "0 0 auto",
-                        }}
-                      >
-                        {variantMeta[it.shopifyVariantGid]?.imageUrl ? (
-                          <img
-                            src={variantMeta[it.shopifyVariantGid]?.imageUrl ?? ""}
-                            alt={variantMeta[it.shopifyVariantGid]?.productTitle ?? it.title ?? "Product image"}
-                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                          />
-                        ) : null}
-                      </div>
-
-                      <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                        <div style={{ fontWeight: 950, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {it.title ?? variantMeta[it.shopifyVariantGid]?.productTitle ?? it.shopifyVariantGid}
-                        </div>
-                        <div style={{ color: "var(--muted-fg)", fontSize: 12 }}>
-                          Qty {it.quantity} · Unit {formatMoney(it.unitPrice, o.currency)}
-                        </div>
-                      </div>
+          {isAuthenticated && !loading && !error ? (
+            <div className="om-purchases-list">
+              {orders.map((order) => (
+                <article key={order.id} className="om-purchase">
+                  <div className="om-purchase-head">
+                    <div>
+                      <span className="om-purchase-label">Order placed</span>
+                      <h2>{new Date(order.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}</h2>
                     </div>
-
-                    <div style={{ flex: "0 0 auto", textAlign: "right" }}>
-                      <div style={{ fontWeight: 950 }}>{formatMoney(it.lineTotal, o.currency)}</div>
-                      <div style={{ fontSize: 12, color: "var(--muted-fg)" }}>
-                        {formatMoney(it.unitPrice, o.currency)} × {it.quantity}
-                      </div>
+                    <div className="om-purchase-summary">
+                      <span className="om-purchase-status">{order.status.replaceAll("_", " ").toLowerCase()}</span>
+                      <strong>{formatMoney(order.total, order.currency)}</strong>
                     </div>
                   </div>
-                ))}
-              </div>
+                  <div className="om-purchase-items">
+                    {order.items.map((item) => {
+                      const meta = variantMeta[item.shopifyVariantGid];
+                      const inCart = cart.ids.has(item.shopifyVariantGid);
+                      const product = cartItem(order, item, meta);
+                      return (
+                        <div key={item.id} className="om-purchase-item">
+                          <div className="om-purchase-image">
+                            {meta?.imageUrl ? <img src={meta.imageUrl} alt="" /> : <span aria-hidden="true">Omorenda</span>}
+                          </div>
+                          <div className="om-purchase-info">
+                            <h3>{item.title ?? "Purchased item"}</h3>
+                            <p>Qty {item.quantity} · {formatMoney(item.unitPrice, order.currency)} each</p>
+                            <div className="om-purchase-actions">
+                              <button type="button" className="om-btn om-btn-primary" onClick={() => cart.add(product, item.quantity)}>
+                                Reorder
+                              </button>
+                              <button type="button" className="om-btn om-btn-outline" onClick={() => cart.toggle(product)}>
+                                {inCart ? "Remove from cart" : "Add to cart"}
+                              </button>
+                            </div>
+                          </div>
+                          <strong className="om-purchase-line-total">{formatMoney(item.lineTotal, order.currency)}</strong>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </article>
+              ))}
             </div>
-          </article>
-        ))}
-          </div>
+          ) : null}
         </div>
       </main>
       <StoreFooter />
     </div>
   );
 }
-

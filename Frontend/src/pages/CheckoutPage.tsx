@@ -107,11 +107,10 @@ export function CheckoutPage() {
             Continue shopping
           </Link>
           {!empty ? (
-            <button type="button" className="om-linkbtn" onClick={() => cart.clear()}>
+            <button type="button" className="om-cart-clear" onClick={() => cart.clear()}>
               Clear cart
             </button>
           ) : null}
-          {isAuthenticated ? <span className="om-cart-count">{user?.email ?? ""}</span> : null}
         </div>
 
         {error ? (
@@ -151,11 +150,8 @@ export function CheckoutPage() {
                         {i.variantTitle && i.variantTitle !== "Default Title" ? `${i.variantTitle} · ` : ""}
                         {formatMoney(i.unitAmount, i.currency)} each
                       </span>
-                      {typeof i.quantityAvailable === "number" ? (
-                        <span className="om-citem-meta">{i.quantityAvailable} in stock</span>
-                      ) : null}
-                      <button type="button" className="om-linkbtn" onClick={() => cart.remove(i.variantGid)}>
-                        Remove
+                      <button type="button" className="om-citem-remove" onClick={() => cart.remove(i.variantGid)}>
+                        Remove item
                       </button>
                     </div>
 
@@ -188,29 +184,15 @@ export function CheckoutPage() {
 
             <aside className="om-summary">
               <h2>Order summary</h2>
-              <div className="om-summary-rows">
-                <div className="om-summary-row">
-                  <span>Subtotal</span>
-                  <span>{formatMoney(subtotal, currency)}</span>
-                </div>
-                <div className="om-summary-row om-summary-row-muted">
-                  <span>Shipping</span>
-                  <span>Calculated at checkout</span>
-                </div>
-                <div className="om-summary-row om-summary-row-muted">
-                  <span>Taxes</span>
-                  <span>Calculated at checkout</span>
-                </div>
-              </div>
               <div className="om-summary-total">
-                <b>Estimated total</b>
+                <b>Subtotal</b>
                 <span>{formatMoney(subtotal, currency)}</span>
               </div>
+              <p className="om-summary-note">Shipping and taxes are calculated at checkout.</p>
               <button type="button" className="om-checkout-btn" onClick={() => void checkout()} disabled={loading}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
-                {loading ? "Redirecting…" : "Secure checkout"}
+                <span>{loading ? "Opening checkout…" : "Continue to checkout"}</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
               </button>
-              <span className="om-summary-note">Shipping and taxes calculated at checkout. Payments processed securely by Stripe.</span>
             </aside>
           </div>
         )}

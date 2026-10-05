@@ -16,16 +16,11 @@ export function LoginPage() {
   return (
     <div className="om-page">
       <StoreHeader announce="Wild-harvested Himalayan botanicals — shipped worldwide." />
-      <main className="om-main">
-        <div className="om-shell om-pagehead">
+      <main className="om-main om-login-main">
+        <div className="om-shell om-login-content">
           <h1>Sign in</h1>
           <p>Continue with Google to access your account.</p>
-        </div>
-        <div className="om-shell om-block" style={{ maxWidth: 460 }}>
-          <AuthGate
-            title="Welcome to Omorenda"
-            subtitle="Sign in or create your account securely with Google."
-          />
+          <AuthGate appearance="plain" returnTo="/" />
         </div>
       </main>
       <StoreFooter />

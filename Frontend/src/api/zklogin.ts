@@ -92,6 +92,7 @@ export async function startGoogleZkLogin(returnTo: string = "/") {
     redirect_uri: redirectUri,
     response_type: "id_token",
     scope: "openid email profile",
+    prompt: "select_account",
     nonce,
   });
   window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;

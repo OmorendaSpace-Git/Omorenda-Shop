@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useCart } from "../cart/useCart";
 import { useAuth } from "../auth/AuthContext";
+import { LogoutDialog } from "./LogoutDialog";
 
 function initials(email: string) {
   const name = (email.split("@")[0] ?? "").trim();
@@ -15,6 +16,7 @@ function initials(email: string) {
 const NAV = [
   { label: "Shop all", to: "/shop" },
   { label: "Singing bowls", to: "/bowls" },
+  { label: "My purchases", to: "/orders" },
 ];
 
 type StoreHeaderProps = {
@@ -23,10 +25,10 @@ type StoreHeaderProps = {
 
 export function StoreHeader({ announce }: StoreHeaderProps) {
   const cart = useCart();
+  const { pathname } = useLocation();
   const { user, isAuthenticated } = useAuth();
-  const navigate = useNavigate();
-  const { logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   const label = useMemo(() => initials(user?.email ?? ""), [user?.email]);
@@ -52,13 +54,20 @@ export function StoreHeader({ announce }: StoreHeaderProps) {
 
           <nav className="om-nav" aria-label="Primary">
             {NAV.map((item, i) => (
-              <Link key={`${item.label}-${i}`} to={item.to}>
+              <Link key={`${item.label}-${i}`} to={item.to} aria-current={pathname === item.to ? "page" : undefined}>
                 {item.label}
               </Link>
             ))}
           </nav>
 
           <div className="om-header-actions">
+            <Link to="/orders" className="om-mobile-purchases" aria-label="My purchases" aria-current={pathname === "/orders" ? "page" : undefined}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 7h14v13H5zM8 7V5a4 4 0 0 1 8 0v2" />
+                <path d="M9 12h6M9 16h4" />
+              </svg>
+              <span>Purchases</span>
+            </Link>
             {isAuthenticated ? (
               <div className="om-account-wrap" ref={rootRef}>
                 <button
@@ -74,7 +83,7 @@ export function StoreHeader({ announce }: StoreHeaderProps) {
                   <div className="om-dropdown" role="menu" aria-label="Account">
                     <div className="om-dropdown-email">{user?.email ?? ""}</div>
                     <Link to="/orders" className="om-dropdown-item" role="menuitem" onClick={() => setOpen(false)}>
-                      Past orders
+                      My purchases
                     </Link>
                     <Link to="/account/nfts" className="om-dropdown-item" role="menuitem" onClick={() => setOpen(false)}>
                       NFT certificates
@@ -84,14 +93,11 @@ export function StoreHeader({ announce }: StoreHeaderProps) {
                       className="om-dropdown-item"
                       role="menuitem"
                       onClick={() => {
-                        void (async () => {
-                          setOpen(false);
-                          await logout();
-                          navigate("/");
-                        })();
+                        setOpen(false);
+                        setConfirmLogout(true);
                       }}
                     >
-                      Logout
+                      Sign out
                     </button>
                   </div>
                 ) : null}
@@ -115,6 +121,7 @@ export function StoreHeader({ announce }: StoreHeaderProps) {
           </div>
         </div>
       </header>
+      {confirmLogout ? <LogoutDialog onClose={() => setConfirmLogout(false)} /> : null}
     </>
   );
 }

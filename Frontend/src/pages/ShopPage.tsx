@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { StoreHeader } from "../components/StoreHeader";
 import { StoreFooter } from "../components/StoreFooter";
-import { PastPurchases } from "../components/PastPurchases";
 import { useCart } from "../cart/useCart";
-import { useAuth } from "../auth/AuthContext";
 import { fetchProducts, getFirstAvailableVariant, type StoreProduct } from "../shop/products";
 
 function formatPrice(p: StoreProduct) {
@@ -42,7 +40,6 @@ export function ShopPage() {
 
   const navigate = useNavigate();
   const cart = useCart();
-  const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
     try {
@@ -114,12 +111,6 @@ export function ShopPage() {
           <h1>Shop all</h1>
           <p>Himalayan herbs, teas and singing bowls, carefully sourced and quality-checked.</p>
         </div>
-
-        {isAuthenticated && user?.email ? (
-          <div className="om-shell">
-            <PastPurchases email={user.email} />
-          </div>
-        ) : null}
 
         <div className="om-shell om-listing-body">
           {loading ? (

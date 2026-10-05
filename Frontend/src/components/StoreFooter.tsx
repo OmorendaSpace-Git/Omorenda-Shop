@@ -21,7 +21,7 @@ export function StoreFooter() {
 
           <div className="om-footer-col">
             <h3>Account</h3>
-            <Link to="/orders">Your orders</Link>
+            <Link to="/orders">My purchases</Link>
             <Link to="/account/nfts">NFT certificates</Link>
             <Link to="/login">Sign in</Link>
           </div>
