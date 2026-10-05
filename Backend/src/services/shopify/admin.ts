@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { config } from "../../config/config";
 import { logger } from "../../utils/logger";
 import { formatCurrencyAmount } from "../../utils/currency";
@@ -56,10 +57,15 @@ export async function createShopifyOrder(args: {
   sourceIdentifier?: string | null;
 }) {
   const recoveryTag = args.sourceIdentifier
-    ? `stripe-session-${args.sourceIdentifier}`
+    // Shopify order tags allow at most 40 characters. Hash the full session
+    // rather than truncating it so different checkouts retain distinct tags.
+    ? `stripe-${createHash("sha256").update(args.sourceIdentifier).digest("hex").slice(0, 32)}`
     : null;
+  const recoveryTags = recoveryTag
+    ? [recoveryTag, `stripe-session-${args.sourceIdentifier}`]
+    : [];
   if (recoveryTag) {
-    const existingOrderId = await findShopifyOrderByTag(args.shop, recoveryTag);
+    const existingOrderId = await findShopifyOrderByTags(args.shop, recoveryTags);
     if (existingOrderId) {
       logger.info(
         { shopifyOrderId: existingOrderId, sourceIdentifier: args.sourceIdentifier },
@@ -155,7 +161,7 @@ export async function createShopifyOrder(args: {
     // Check the recovery tag before reporting failure or issuing a refund.
     if (recoveryTag) {
       try {
-        const recoveredOrderId = await findShopifyOrderByTag(args.shop, recoveryTag);
+        const recoveredOrderId = await findShopifyOrderByTags(args.shop, recoveryTags);
         if (recoveredOrderId) {
           logger.warn(
             { shopifyOrderId: recoveredOrderId, sourceIdentifier: args.sourceIdentifier },
@@ -177,7 +183,7 @@ export async function createShopifyOrder(args: {
   }
 }
 
-async function findShopifyOrderByTag(shop: string, tag: string): Promise<string | null> {
+async function findShopifyOrderByTags(shop: string, tags: string[]): Promise<string | null> {
   const query = `
     query findOrderByTag($query: String!) {
       orders(first: 1, query: $query) {
@@ -186,7 +192,8 @@ async function findShopifyOrderByTag(shop: string, tag: string): Promise<string 
     }
   `;
   const response = await shopifyAdminGraphql(shop, query, {
-    query: `tag:'${tag.replace(/['\\]/g, "")}'`,
+    // Legacy tags are searched only; never submit them on new orders.
+    query: tags.map(tag => `tag:'${tag.replace(/['\\]/g, "")}'`).join(" OR "),
   });
   const orderId = response?.orders?.nodes?.[0]?.id;
   return typeof orderId === "string" && orderId ? orderId : null;
