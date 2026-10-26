@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { listOrders, type Order, type OrderItem } from "../api/orders";
+import { useEffect, useRef, useState } from "react";
+import { Link, Navigate } from "react-router-dom";
+import { hideOrderFromHistory, listOrders, type Order, type OrderItem } from "../api/orders";
+import { listMyNfts, type NftCertificate } from "../api/bowls";
 import { useAuth } from "../auth/AuthContext";
 import { useCart } from "../cart/useCart";
 import type { CartItem } from "../cart/types";
-import { AuthGate } from "../components/AuthGate";
 import { StoreFooter } from "../components/StoreFooter";
 import { StoreHeader } from "../components/StoreHeader";
 
@@ -28,7 +28,7 @@ function formatMoney(amount: string, currency: string): string {
   }
 }
 
-function cartItem(order: Order, item: OrderItem, meta?: ProductMeta): Omit<CartItem, "quantity"> {
+function cartItem(order: Order, item: OrderItem, variantGid: string, meta?: ProductMeta): Omit<CartItem, "quantity"> {
   return {
     productId: meta?.productId ?? "unknown",
     productHandle: meta?.productHandle ?? "",
@@ -36,7 +36,7 @@ function cartItem(order: Order, item: OrderItem, meta?: ProductMeta): Omit<CartI
     imageUrl: meta?.imageUrl ?? null,
     currency: order.currency,
     unitAmount: Number(item.unitPrice),
-    variantGid: item.shopifyVariantGid,
+    variantGid,
     variantTitle: item.title ?? "Variant",
     availableForSale: true,
     quantityAvailable: null,
@@ -49,23 +49,35 @@ export function OrdersPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [certificates, setCertificates] = useState<NftCertificate[]>([]);
   const [variantMeta, setVariantMeta] = useState<Record<string, ProductMeta>>({});
+  const [confirmOrderId, setConfirmOrderId] = useState<string | null>(null);
+  const [hidingOrderId, setHidingOrderId] = useState<string | null>(null);
+  const [hideError, setHideError] = useState<string | null>(null);
+  const cancelHideRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      setOrders([]);
-      setVariantMeta({});
-      return;
+    if (!confirmOrderId) return;
+    cancelHideRef.current?.focus();
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !hidingOrderId) setConfirmOrderId(null);
     }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [confirmOrderId, hidingOrderId]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
 
     let cancelled = false;
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const data = await listOrders();
+        const [data, nfts] = await Promise.all([listOrders(), listMyNfts().catch(() => [] as NftCertificate[])]);
         if (cancelled) return;
         setOrders(data);
+        setCertificates(nfts);
 
         try {
           const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8001/api";
@@ -99,6 +111,26 @@ export function OrdersPage() {
     return () => { cancelled = true; };
   }, [isAuthenticated]);
 
+  async function confirmHideOrder() {
+    if (!confirmOrderId || hidingOrderId) return;
+    const id = confirmOrderId;
+    setHidingOrderId(id);
+    setHideError(null);
+    try {
+      await hideOrderFromHistory(id);
+      setOrders((current) => current.filter((order) => order.id !== id));
+      setConfirmOrderId(null);
+    } catch (cause) {
+      setHideError(cause instanceof Error ? cause.message : "Couldn't remove this purchase from your history.");
+    } finally {
+      setHidingOrderId(null);
+    }
+  }
+
+  if (!authLoading && !isAuthenticated) {
+    return <Navigate to="/login" replace state={{ returnTo: "/orders" }} />;
+  }
+
   return (
     <div className="om-page">
       <StoreHeader announce="Wild-harvested Himalayan botanicals — shipped worldwide." />
@@ -108,23 +140,21 @@ export function OrdersPage() {
             <Link to="/">Home</Link><span>/</span><span aria-current="page">My purchases</span>
           </nav>
           <h1>My purchases</h1>
-          <p>{isAuthenticated ? `Orders for ${user?.email ?? "your account"}` : "Sign in to see your orders and buy your favorites again."}</p>
+          <p>Orders for {user?.email ?? "your account"}</p>
         </div>
 
         <div className="om-shell om-purchases-body">
           {authLoading ? <p className="om-state">Loading your account…</p> : null}
-          {!authLoading && !isAuthenticated ? (
-            <div className="om-purchases-gate">
-              <AuthGate appearance="plain" />
-            </div>
-          ) : null}
           {isAuthenticated && loading ? <p className="om-state">Loading purchases…</p> : null}
           {isAuthenticated && error ? <p className="om-error">{error}</p> : null}
           {isAuthenticated && !loading && !error && orders.length === 0 ? (
             <div className="om-purchases-empty">
-              <h2>No purchases yet</h2>
-              <p>When you place an order, you’ll find it here.</p>
-              <Link to="/shop" className="om-btn om-btn-primary">Explore the shop</Link>
+              <h2>No purchases to show</h2>
+              <p>New orders will appear here. Bowl certificates remain available in your account even if you remove an order from this list.</p>
+              <div className="om-purchase-actions" style={{ justifyContent: "center" }}>
+                <Link to="/shop" className="om-btn om-btn-primary">Explore the shop</Link>
+                <Link to="/account/nfts" className="om-btn om-btn-outline">My NFT certificates</Link>
+              </div>
             </div>
           ) : null}
 
@@ -140,28 +170,36 @@ export function OrdersPage() {
                     <div className="om-purchase-summary">
                       <span className="om-purchase-status">{order.status.replaceAll("_", " ").toLowerCase()}</span>
                       <strong>{formatMoney(order.total, order.currency)}</strong>
+                      <button type="button" className="om-purchase-remove" onClick={() => { setHideError(null); setConfirmOrderId(order.id); }}>
+                        Remove from history
+                      </button>
                     </div>
                   </div>
                   <div className="om-purchase-items">
                     {order.items.map((item) => {
-                      const meta = variantMeta[item.shopifyVariantGid];
-                      const inCart = cart.ids.has(item.shopifyVariantGid);
-                      const product = cartItem(order, item, meta);
+                      const variantGid = item.shopifyVariantGid;
+                      const meta = variantGid ? variantMeta[variantGid] : undefined;
+                      const certificate = certificates.find((nft) => nft.orderId === order.id && nft.productKind === "BOWL");
+                      const isBowl = Boolean(certificate) || /^BOWL-\d{3}$/i.test(item.sku ?? "");
+                      const inCart = variantGid ? cart.ids.has(variantGid) : false;
                       return (
                         <div key={item.id} className="om-purchase-item">
                           <div className="om-purchase-image">
-                            {meta?.imageUrl ? <img src={meta.imageUrl} alt="" /> : <span aria-hidden="true">Omorenda</span>}
+                            {meta?.imageUrl || certificate?.bowl?.imageUrl ? <img src={meta?.imageUrl ?? certificate?.bowl?.imageUrl ?? ""} alt="" /> : <span aria-hidden="true">Omorenda</span>}
                           </div>
                           <div className="om-purchase-info">
                             <h3>{item.title ?? "Purchased item"}</h3>
                             <p>Qty {item.quantity} · {formatMoney(item.unitPrice, order.currency)} each</p>
                             <div className="om-purchase-actions">
-                              <button type="button" className="om-btn om-btn-primary" onClick={() => cart.add(product, item.quantity)}>
-                                Reorder
-                              </button>
-                              <button type="button" className="om-btn om-btn-outline" onClick={() => cart.toggle(product)}>
-                                {inCart ? "Remove from cart" : "Add to cart"}
-                              </button>
+                              {isBowl ? (
+                                <Link to={certificate ? `/account/nfts#certificate-${certificate.id}` : "/account/nfts"} className="om-btn om-btn-primary">
+                                  View NFT certificate
+                                </Link>
+                              ) : variantGid ? (
+                                <button type="button" className="om-btn om-btn-primary" onClick={() => cart.add(cartItem(order, item, variantGid, meta), item.quantity)}>
+                                  {inCart ? "Add more to cart" : "Add to cart"}
+                                </button>
+                              ) : null}
                             </div>
                           </div>
                           <strong className="om-purchase-line-total">{formatMoney(item.lineTotal, order.currency)}</strong>
@@ -175,6 +213,22 @@ export function OrdersPage() {
           ) : null}
         </div>
       </main>
+
+      {confirmOrderId ? (
+        <div className="om-history-dialog-backdrop">
+          <div className="om-history-dialog" role="alertdialog" aria-modal="true" aria-labelledby="om-hide-title" aria-describedby="om-hide-description">
+            <h2 id="om-hide-title">Remove this purchase?</h2>
+            <p id="om-hide-description">It will disappear from My purchases. This does not cancel or refund the order, and any bowl NFT certificate will remain in your account.</p>
+            {hideError ? <p className="om-error" role="alert">{hideError}</p> : null}
+            <div className="om-history-dialog-actions">
+              <button ref={cancelHideRef} type="button" className="om-btn om-btn-outline" disabled={Boolean(hidingOrderId)} onClick={() => setConfirmOrderId(null)}>Keep purchase</button>
+              <button type="button" className="om-btn om-btn-primary" disabled={Boolean(hidingOrderId)} onClick={() => void confirmHideOrder()}>
+                {hidingOrderId ? "Removing…" : "Remove from history"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <StoreFooter />
     </div>
   );

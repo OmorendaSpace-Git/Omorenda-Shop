@@ -65,6 +65,7 @@ model Order {
   total           Decimal     @db.Decimal(12, 2)
   shippingAddress Json?
   refundedAt      DateTime?
+  hiddenAt        DateTime?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 

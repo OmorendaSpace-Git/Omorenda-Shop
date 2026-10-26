@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { StoreHeader } from "../components/StoreHeader";
 import { StoreFooter } from "../components/StoreFooter";
 import { useCart } from "../cart/useCart";
 import { useAuth } from "../auth/AuthContext";
-import { AuthGate } from "../components/AuthGate";
 import { API_BASE_URL, ApiError, fetchJson } from "../api/client";
 
 function formatMoney(n: number, currency: string) {
@@ -20,8 +19,6 @@ export function CheckoutPage() {
   const cart = useCart();
   const navigate = useNavigate();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const [showAuth, setShowAuth] = useState(false);
-  const [pendingCheckout, setPendingCheckout] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,8 +36,7 @@ export function CheckoutPage() {
 
   async function checkout() {
     if (!isAuthenticated) {
-      setShowAuth(true);
-      setPendingCheckout(true);
+      navigate("/login", { state: { returnTo: "/checkout" } });
       return;
     }
     if (cart.items.length === 0) return;
@@ -68,24 +64,16 @@ export function CheckoutPage() {
       window.location.href = json.url;
     } catch (e) {
       if (e instanceof ApiError && e.code === "SESSION_EXPIRED") {
-        setPendingCheckout(true);
-        setShowAuth(true);
+        setLoading(false);
+        navigate("/login", { state: { returnTo: "/checkout" } });
+        return;
       }
       setError(e instanceof Error ? e.message : "Checkout failed");
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    if (pendingCheckout && isAuthenticated && !loading) {
-      setPendingCheckout(false);
-      void checkout();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingCheckout, isAuthenticated]);
-
   const empty = cart.items.length === 0;
-  const showAuthGate = !authLoading && !isAuthenticated && showAuth;
 
   return (
     <div className="om-page">
@@ -119,11 +107,7 @@ export function CheckoutPage() {
           </div>
         ) : null}
 
-        {showAuthGate ? (
-          <div className="om-shell" style={{ paddingTop: 8, paddingBottom: 24 }}>
-            <AuthGate title="Sign in to checkout" subtitle="Continue with Google to proceed to payment." />
-          </div>
-        ) : empty ? (
+        {empty ? (
           <div className="om-shell" style={{ paddingBottom: 24 }}>
             <div className="om-cart-empty">
               <p>Your cart is empty.</p>
@@ -189,8 +173,8 @@ export function CheckoutPage() {
                 <span>{formatMoney(subtotal, currency)}</span>
               </div>
               <p className="om-summary-note">Shipping and taxes are calculated at checkout.</p>
-              <button type="button" className="om-checkout-btn" onClick={() => void checkout()} disabled={loading}>
-                <span>{loading ? "Opening checkout…" : "Continue to checkout"}</span>
+              <button type="button" className="om-checkout-btn" onClick={() => void checkout()} disabled={loading || authLoading}>
+                <span>{loading ? "Opening checkout…" : authLoading ? "Checking account…" : "Continue to checkout"}</span>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
               </button>
             </aside>

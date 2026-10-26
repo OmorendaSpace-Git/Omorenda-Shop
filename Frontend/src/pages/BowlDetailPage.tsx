@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { StoreHeader } from "../components/StoreHeader";
 import { StoreFooter } from "../components/StoreFooter";
 import { useAuth } from "../auth/AuthContext";
-import { AuthGate } from "../components/AuthGate";
 import { GoogleWalletGate } from "../components/GoogleWalletGate";
 import { BowlAudioPreview } from "../components/BowlAudioPreview";
 import { createBowlCheckoutSession, getBowl, type Bowl } from "../api/bowls";
@@ -11,6 +10,7 @@ import { createBowlCheckoutSession, getBowl, type Bowl } from "../api/bowls";
 export function BowlDetailPage() {
   const { serial: serialParam } = useParams<{ serial: string }>();
   const serial = Number(serialParam);
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
@@ -18,9 +18,7 @@ export function BowlDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [buying, setBuying] = useState(false);
-  const [showAuth, setShowAuth] = useState(false);
   const [needsGoogle, setNeedsGoogle] = useState(false);
-  const [pendingBuy, setPendingBuy] = useState(false);
 
   useEffect(() => {
     if (!Number.isInteger(serial) || serial < 1 || serial > 101) {
@@ -49,8 +47,7 @@ export function BowlDetailPage() {
   async function buyNow() {
     if (!bowl) return;
     if (!isAuthenticated) {
-      setShowAuth(true);
-      setPendingBuy(true);
+      navigate("/login", { state: { returnTo: `/bowls/${bowl.serialNumber}?resumeCheckout=1` } });
       return;
     }
     if (!user?.hasSuiWallet) {
@@ -73,7 +70,6 @@ export function BowlDetailPage() {
         // A legacy session may not have a wallet yet; the certificate wallet
         // is derived when that account is linked through Google.
         setNeedsGoogle(true);
-        setShowAuth(true);
         setBuying(false);
         return;
       }
@@ -91,14 +87,6 @@ export function BowlDetailPage() {
       setBuying(false);
     }
   }
-
-  useEffect(() => {
-    if (pendingBuy && isAuthenticated && !buying) {
-      setPendingBuy(false);
-      void buyNow();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingBuy, isAuthenticated]);
 
   useEffect(() => {
     if (
@@ -135,22 +123,13 @@ export function BowlDetailPage() {
           </nav>
         </div>
 
-        <div className="om-shell om-block">
-          {!authLoading && showAuth && !isAuthenticated ? (
-            <div style={{ marginBottom: 16, maxWidth: 460 }}>
-              <AuthGate
-                title="Sign in to continue"
-                subtitle="Continue with Google to purchase this bowl and receive its digital certificate."
-              />
-            </div>
-          ) : null}
-
-          {!authLoading && isAuthenticated && needsGoogle ? (
+        {!authLoading && isAuthenticated && (needsGoogle || searchParams.get("resumeCheckout") === "1") && !user?.hasSuiWallet ? (
+          <div className="om-shell om-block">
             <div style={{ marginBottom: 16, maxWidth: 460 }}>
               <GoogleWalletGate returnTo={`/bowls/${serial}?resumeCheckout=1`} />
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
         {loading ? (
           <p className="om-state">Loading…</p>
@@ -193,10 +172,10 @@ export function BowlDetailPage() {
               <button
                 type="button"
                 onClick={() => void buyNow()}
-                disabled={sold || buying}
+                disabled={sold || buying || authLoading}
                 className="om-addbtn"
               >
-                {sold ? "Already sold" : buying ? "Redirecting to checkout…" : "Buy now"}
+                {sold ? "Already sold" : buying ? "Redirecting to checkout…" : authLoading ? "Checking account…" : "Buy now"}
               </button>
 
               {sold && bowl.nftObjectId ? (

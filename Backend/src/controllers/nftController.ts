@@ -35,6 +35,11 @@ export async function listMyNfts(req: AuthedRequest, res: Response) {
             serialNumber: m.bowlSerial,
             name: payload.name,
             imageUrl: payload.imageUrl,
+            weightGrams: payload.weightGrams,
+            heightMm: payload.heightMm,
+            widthMm: payload.widthMm,
+            note: payload.note,
+            frequency: payload.frequency,
           }
         : null,
       order: m.order

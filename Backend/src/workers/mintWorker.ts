@@ -8,6 +8,7 @@ import { prisma } from "../config/db";
 import { config } from "../config/config";
 import { logger } from "../utils/logger";
 import { runBowlMint } from "./mintRunner";
+import { BowlAlreadyMintedError } from "../services/sui/mint";
 
 const POLL_MS = config.mintWorker.pollIntervalMs;
 const MAX_ATTEMPTS = config.mintWorker.maxAttempts;
@@ -80,7 +81,7 @@ async function processMint(mintId: string) {
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (mint.attempts >= MAX_ATTEMPTS) {
+    if (err instanceof BowlAlreadyMintedError || mint.attempts >= MAX_ATTEMPTS) {
       await markFailed(mint.id, mint.attempts, message);
       logger.error(
         { mintId: mint.id, attempts: mint.attempts, err: message },

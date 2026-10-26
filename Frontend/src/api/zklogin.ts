@@ -64,7 +64,15 @@ export async function startGoogleZkLogin(returnTo: string = "/") {
   const ephemeralKeypair = Ed25519Keypair.generate();
 
   const client = new SuiJsonRpcClient({ url: SUI_RPC_URL, network: SUI_NETWORK });
-  const { epoch } = await client.getLatestSuiSystemState();
+  let epoch: string;
+  try {
+    ({ epoch } = await client.getLatestSuiSystemState());
+  } catch (cause) {
+    throw new Error(
+      `Could not reach the Sui ${SUI_NETWORK} network to start sign-in. Check your connection and try again.`,
+      { cause },
+    );
+  }
   const maxEpoch = Number(epoch) + 2;
 
   const randomness = zk.generateRandomness();

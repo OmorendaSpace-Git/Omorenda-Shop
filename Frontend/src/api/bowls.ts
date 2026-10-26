@@ -57,7 +57,16 @@ export type NftCertificate = {
   mintTxDigest: string | null;
   recipientSuiAddress: string;
   createdAt: string;
-  bowl: { serialNumber: number; name: string; imageUrl: string } | null;
+  bowl: {
+    serialNumber: number;
+    name: string;
+    imageUrl: string;
+    weightGrams: number;
+    heightMm: number;
+    widthMm: number;
+    note: string;
+    frequency: string;
+  } | null;
   order: { id: string; createdAt: string; total: string; currency: string } | null;
 };
 
