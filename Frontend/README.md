@@ -34,6 +34,7 @@ cp .env.example .env.local
 
 Set:
 - `VITE_API_BASE_URL=http://localhost:8001/api`
+- Optional: `VITE_SUI_GRPC_URL` for a custom Sui gRPC endpoint. Google sign-in uses the public Sui full node for the configured network by default.
 
 Or copy `.env.sample`:
 

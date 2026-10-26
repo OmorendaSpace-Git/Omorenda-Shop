@@ -13,9 +13,9 @@ const SUI_NETWORK: "testnet" | "mainnet" | "devnet" =
     | "mainnet"
     | "devnet") || "testnet";
 
-const SUI_RPC_URL: string =
-  (import.meta.env.VITE_SUI_RPC_URL as string | undefined) ||
-  `https://sui-${SUI_NETWORK}-rpc.publicnode.com`;
+const SUI_GRPC_URL: string =
+  (import.meta.env.VITE_SUI_GRPC_URL as string | undefined) ||
+  `https://fullnode.${SUI_NETWORK}.sui.io:443`;
 
 type PendingState = {
   ephemeralSecretKey: string; // base64
@@ -55,21 +55,22 @@ export async function startGoogleZkLogin(returnTo: string = "/") {
     throw new Error("Missing VITE_GOOGLE_OAUTH_CLIENT_ID");
   }
 
-  const [{ Ed25519Keypair }, { SuiJsonRpcClient }, zk] = await Promise.all([
+  const [{ Ed25519Keypair }, { SuiGrpcClient }, zk] = await Promise.all([
     import("@mysten/sui/keypairs/ed25519"),
-    import("@mysten/sui/jsonRpc"),
+    import("@mysten/sui/grpc"),
     import("@mysten/sui/zklogin"),
   ]);
 
   const ephemeralKeypair = Ed25519Keypair.generate();
 
-  const client = new SuiJsonRpcClient({ url: SUI_RPC_URL, network: SUI_NETWORK });
+  const client = new SuiGrpcClient({ baseUrl: SUI_GRPC_URL, network: SUI_NETWORK });
   let epoch: string;
   try {
-    ({ epoch } = await client.getLatestSuiSystemState());
+    const { systemState } = await client.core.getCurrentSystemState();
+    epoch = systemState.epoch;
   } catch (cause) {
     throw new Error(
-      `Could not reach the Sui ${SUI_NETWORK} network to start sign-in. Check your connection and try again.`,
+      `Could not get the Sui ${SUI_NETWORK} network status for sign-in. Please try again.`,
       { cause },
     );
   }
