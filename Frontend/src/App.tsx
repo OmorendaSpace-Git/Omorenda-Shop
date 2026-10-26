@@ -1,5 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import "./App.css";
+import { HomePage } from "./pages/HomePage";
 import { ShopPage } from "./pages/ShopPage";
 import { ProductPage } from "./pages/ProductPage";
 import { OrdersPage } from "./pages/OrdersPage";
@@ -14,7 +15,8 @@ import { GoogleCallbackPage } from "./pages/GoogleCallbackPage";
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<ShopPage />} />
+      <Route path="/" element={<HomePage />} />
+      <Route path="/shop" element={<ShopPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/success" element={<SuccessPage />} />
       <Route path="/orders" element={<OrdersPage />} />

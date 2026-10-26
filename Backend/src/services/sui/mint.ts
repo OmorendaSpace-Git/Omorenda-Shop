@@ -20,6 +20,13 @@ export type MintBowlResult = {
   sponsorAddress: string;
 };
 
+export class BowlAlreadyMintedError extends Error {
+  constructor(serial: number) {
+    super(`Bowl #${serial} is already minted in the configured Sui collection. Reconcile the existing certificate and owner before retrying; a duplicate certificate cannot be issued.`);
+    this.name = "BowlAlreadyMintedError";
+  }
+}
+
 function bytes(s: string): number[] {
   return Array.from(new TextEncoder().encode(s));
 }
@@ -40,6 +47,20 @@ export async function mintBowlOnSui(input: MintBowlInput): Promise<MintBowlResul
     getSponsorAddress(),
     import("@mysten/sui/transactions"),
   ]);
+
+  // A reset local database does not reset the serials already minted on-chain.
+  const cap = await client.getObject({
+    id: config.sui.mintCapObjectId,
+    options: { showContent: true },
+  });
+  const content = cap.data?.content;
+  if (content?.dataType !== "moveObject" || !("minted_bitmap" in content.fields)) {
+    throw new Error("Could not read the configured MintCap bitmap");
+  }
+  const bitmap = BigInt(String(content.fields.minted_bitmap));
+  if ((bitmap & (1n << BigInt(input.serial - 1))) !== 0n) {
+    throw new BowlAlreadyMintedError(input.serial);
+  }
 
   const tx = new Transaction();
   tx.setSender(sponsor);

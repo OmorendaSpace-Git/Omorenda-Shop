@@ -1,8 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { SiteHeader } from "../components/SiteHeader";
-import { useCart } from "../cart/useCart";
+import { StoreHeader } from "../components/StoreHeader";
+import { StoreFooter } from "../components/StoreFooter";
 import { fetchProducts, getFirstAvailableVariant, type StoreProduct } from "../shop/products";
+import { useCart } from "../cart/useCart";
+
+function formatMoney(amount: number, currency: string) {
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+  } catch {
+    return `$${amount.toFixed(2)}`;
+  }
+}
 
 export function ProductPage() {
   const params = useParams();
@@ -11,7 +20,9 @@ export function ProductPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [product, setProduct] = useState<StoreProduct | null>(null);
+  const [allProducts, setAllProducts] = useState<StoreProduct[]>([]);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const cart = useCart();
 
@@ -23,12 +34,15 @@ export function ProductPage() {
         setError(null);
         if (!handle) throw new Error("Missing product handle");
         const json = await fetchProducts(250);
-        const found = (json.products ?? []).find((p) => p.handle === handle) ?? null;
+        const list = json.products ?? [];
+        const found = list.find((p) => p.handle === handle) ?? null;
         if (!found) throw new Error("Product not found");
         if (!cancelled) {
+          setAllProducts(list);
           setProduct(found);
           const firstAvailable = getFirstAvailableVariant(found);
           setSelectedVariantId(firstAvailable?.id ?? found.variants?.[0]?.id ?? null);
+          setActiveImage(0);
           setQuantity(1);
         }
       } catch (e) {
@@ -47,7 +61,6 @@ export function ProductPage() {
   const selectedVariant =
     (selectedVariantId ? variants.find((v) => v.id === selectedVariantId) : null) ?? variants[0] ?? null;
   const canBuy = !!selectedVariant?.availableForSale;
-  const isInCart = selectedVariant?.id ? cart.ids.has(selectedVariant.id) : false;
   const maxQty =
     selectedVariant?.availableForSale === false
       ? 0
@@ -55,189 +68,213 @@ export function ProductPage() {
         ? Math.max(0, Math.min(99, Math.trunc(selectedVariant.quantityAvailable)))
         : 99;
   const maxQtyUi = Math.max(1, maxQty);
+  const quantityUi = Math.min(maxQtyUi, Math.max(1, quantity));
 
-  useEffect(() => {
-    setQuantity((q) => Math.min(maxQtyUi, Math.max(1, q)));
-  }, [maxQtyUi]);
+  const currency = product?.price?.min?.currencyCode ?? "USD";
+  const displayAmount = Number(selectedVariant?.price?.amount ?? product?.price?.min?.amount ?? 0);
+  const showVariants = variants.length > 1;
+
+  const related = useMemo(() => {
+    if (!product) return [];
+    return allProducts.filter((p) => p.id !== product.id).slice(0, 4);
+  }, [allProducts, product]);
+
+  function addToCart() {
+    if (!selectedVariant?.id || !product) return;
+    cart.add(
+      {
+        productId: product.id,
+        productHandle: product.handle,
+        title: product.title,
+        imageUrl: product.images?.[0]?.url ?? null,
+        currency,
+        unitAmount: displayAmount,
+        variantGid: selectedVariant.id,
+        variantTitle: selectedVariant.title,
+        availableForSale: selectedVariant.availableForSale,
+        quantityAvailable: typeof selectedVariant.quantityAvailable === "number" ? selectedVariant.quantityAvailable : null,
+      },
+      quantityUi,
+    );
+  }
 
   if (loading) {
     return (
-      <div className="sh-container">
-        <p style={{ color: "#666" }}>Loading…</p>
+      <div className="om-page">
+        <StoreHeader announce="Wild-harvested Himalayan botanicals — shipped worldwide." />
+        <main className="om-main">
+          <p className="om-state">Loading…</p>
+        </main>
+        <StoreFooter />
       </div>
     );
   }
 
-  if (error) {
+  if (error || !product) {
     return (
-      <div className="sh-container">
-        <p style={{ color: "crimson" }}>{error}</p>
-        <p style={{ marginTop: 12 }}>
-          <Link to="/" style={{ color: "var(--fg)", fontWeight: 900 }}>
-            Back to shop
-          </Link>
-        </p>
+      <div className="om-page">
+        <StoreHeader announce="Wild-harvested Himalayan botanicals — shipped worldwide." />
+        <main className="om-main">
+          <p className="om-state om-state-error">{error ?? "Product not found"}</p>
+          <p style={{ textAlign: "center" }}>
+            <Link to="/shop">← Back to shop</Link>
+          </p>
+        </main>
+        <StoreFooter />
       </div>
     );
   }
 
-  if (!product) return null;
+  const images = product.images ?? [];
+  const mainImage = images[activeImage] ?? images[0] ?? null;
 
   return (
-    <div className="sh-container">
-      <SiteHeader
-        pageTitle="Omorenda Shop"
-        left={
-          <Link to="/" style={{ color: "var(--fg)", textDecoration: "none", fontWeight: 900 }}>
-            ← Back
-          </Link>
-        }
-      />
+    <div className="om-page">
+      <StoreHeader announce="Wild-harvested Himalayan botanicals — shipped worldwide." />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
-        <div className="sh-twoCol">
-          <div className="sh-productImage" style={{ borderRadius: 16 }}>
-            {product.images?.[0]?.url ? <img src={product.images[0].url} alt={product.images[0].altText ?? product.title} /> : null}
-          </div>
+      <main className="om-main">
+        <div className="om-shell om-listing-head" style={{ paddingBottom: 0 }}>
+          <nav className="om-breadcrumb" aria-label="Breadcrumb">
+            <Link to="/">Home</Link>
+            <span>/</span>
+            <Link to="/shop">Shop all</Link>
+            <span>/</span>
+            <span aria-current="page">{product.title}</span>
+          </nav>
+        </div>
 
-          <div className="sh-card" style={{ padding: 16 }}>
-            <h2 style={{ margin: 0, fontSize: 18, color: "var(--fg)", fontWeight: 950, letterSpacing: "-0.01em" }}>{product.title}</h2>
-            <p style={{ marginTop: 10, fontSize: 14, color: "var(--muted-fg)", fontWeight: 800 }}>
-              ${Number(product.price?.min?.amount ?? 0).toFixed(2)}{" "}
-              <span style={{ fontSize: 12, fontWeight: 800 }}>{product.price?.min?.currencyCode ?? "USD"}</span>
-            </p>
-
-            <div style={{ marginTop: 10 }}>
-              <span className={`sh-badge ${canBuy ? "sh-badgeInStock" : "sh-badgeOut"}`}>{canBuy ? "In stock" : "Sold out"}</span>
+        <section className="om-shell om-pdp">
+          {/* Gallery */}
+          <div className="om-gallery">
+            <div className="om-gallery-main">
+              {mainImage ? <img src={mainImage.url} alt={mainImage.altText ?? product.title} /> : null}
             </div>
-
-            <p style={{ marginTop: 10, marginBottom: 0, color: "var(--fg)", fontSize: 13, lineHeight: 1.5, opacity: 0.9 }}>
-              {product.description || "No description provided."}
-            </p>
-
-            {variants.length > 1 ? (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 12, color: "var(--muted-fg)", marginBottom: 8, fontWeight: 900 }}>Variants</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {variants.map((v) => {
-                    const active = v.id === selectedVariant?.id;
-                    return (
-                      <button
-                        key={v.id}
-                        type="button"
-                        onClick={() => setSelectedVariantId(v.id)}
-                        className={active ? "sh-btn sh-btnPrimary" : "sh-btn"}
-                        style={{
-                          padding: "8px 10px",
-                          opacity: v.availableForSale ? 1 : 0.55,
-                          cursor: v.availableForSale ? "pointer" : "not-allowed",
-                        }}
-                        title={v.availableForSale ? "Available" : "Sold out"}
-                      >
-                        {v.title}
-                      </button>
-                    );
-                  })}
-                </div>
+            {images.length > 1 ? (
+              <div className="om-thumbs">
+                {images.map((img, i) => (
+                  <button
+                    key={img.url + i}
+                    type="button"
+                    className={`om-thumb ${i === activeImage ? "om-thumb-active" : ""}`}
+                    aria-label={`Photo ${i + 1} of ${images.length}`}
+                    onClick={() => setActiveImage(i)}
+                  >
+                    <img src={img.url} alt="" />
+                  </button>
+                ))}
               </div>
             ) : null}
+          </div>
 
-            <div className="sh-actionsCompact">
+          {/* Info */}
+          <div className="om-pdp-info">
+            <h1 className="om-pdp-title">{product.title}</h1>
+            <div className="om-pdp-price om-serif">{formatMoney(displayAmount, currency)}</div>
+
+            {showVariants ? (
+              <fieldset style={{ margin: 0, padding: 0, border: "none" }}>
+                <legend className="om-field-label" style={{ padding: 0 }}>Options</legend>
+                <div className="om-variants">
+                  {variants.map((v) => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      className={`om-variant ${v.id === selectedVariant?.id ? "om-variant-active" : ""}`}
+                      aria-pressed={v.id === selectedVariant?.id}
+                      disabled={!v.availableForSale}
+                      onClick={() => setSelectedVariantId(v.id)}
+                    >
+                      {v.title}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            ) : null}
+
+            <div className="om-buy-row">
+              <div className="om-qty" role="group" aria-label="Quantity">
+                <button
+                  type="button"
+                  aria-label="Decrease quantity"
+                  onClick={() => setQuantity(quantityUi - 1)}
+                  disabled={quantityUi <= 1}
+                >
+                  −
+                </button>
+                <span className="om-qty-val">{quantityUi}</span>
+                <button
+                  type="button"
+                  aria-label="Increase quantity"
+                  onClick={() => setQuantity(quantityUi + 1)}
+                  disabled={quantityUi >= maxQtyUi}
+                >
+                  +
+                </button>
+              </div>
               <button
                 type="button"
+                className="om-addbtn"
+                disabled={!canBuy}
                 onClick={() => {
-                  if (!selectedVariant?.id) return;
-                  cart.add(
-                    {
-                      productId: product.id,
-                      productHandle: product.handle,
-                      title: product.title,
-                      imageUrl: product.images?.[0]?.url ?? null,
-                      currency: product.price?.min?.currencyCode ?? "USD",
-                      unitAmount: Number(product.price?.min?.amount ?? 0),
-                      variantGid: selectedVariant.id,
-                      variantTitle: selectedVariant.title,
-                      availableForSale: selectedVariant.availableForSale,
-                      quantityAvailable: typeof selectedVariant?.quantityAvailable === "number" ? selectedVariant.quantityAvailable : null,
-                    },
-                    quantity,
-                  );
+                  addToCart();
                   navigate("/checkout");
                 }}
-                disabled={!selectedVariant?.id || !canBuy}
-                className="sh-btn sh-btnPrimary sh-actionsBuy"
-                style={{ cursor: !canBuy ? "not-allowed" : "pointer", opacity: !canBuy ? 0.6 : 1 }}
               >
-                Buy Now
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (!selectedVariant?.id) return;
-                  cart.add(
-                    {
-                      productId: product.id,
-                      productHandle: product.handle,
-                      title: product.title,
-                      imageUrl: product.images?.[0]?.url ?? null,
-                      currency: product.price?.min?.currencyCode ?? "USD",
-                      unitAmount: Number(product.price?.min?.amount ?? 0),
-                      variantGid: selectedVariant.id,
-                      variantTitle: selectedVariant.title,
-                      availableForSale: selectedVariant.availableForSale,
-                      quantityAvailable: typeof selectedVariant?.quantityAvailable === "number" ? selectedVariant.quantityAvailable : null,
-                    },
-                    quantity,
-                  );
-                }}
-                disabled={!selectedVariant?.id}
-                className="sh-btn"
-                style={{ background: isInCart ? "rgba(24, 149, 136, 0.08)" : "#fff" }}
-              >
-                {isInCart ? "In cart" : "Add to cart"}
-              </button>
-
-              <button type="button" onClick={() => navigate("/checkout")} className="sh-btn" disabled={cart.items.length === 0}>
-                Go to cart
+                {canBuy ? "Buy now" : "Sold out"}
               </button>
             </div>
 
-            <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
-              <div style={{ fontSize: 12, color: "var(--muted-fg)", fontWeight: 900 }}>Quantity</div>
-              <button
-                type="button"
-                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                disabled={quantity <= 1}
-                className="sh-btn sh-qtyBtn"
-                style={{ cursor: quantity <= 1 ? "not-allowed" : "pointer", opacity: quantity <= 1 ? 0.6 : 1 }}
-              >
-                −
-              </button>
-              <div style={{ minWidth: 28, textAlign: "center", fontWeight: 950, color: "var(--fg)" }}>{quantity}</div>
-              <button
-                type="button"
-                onClick={() => setQuantity((q) => Math.min(maxQtyUi, q + 1))}
-                disabled={quantity >= maxQtyUi}
-                className="sh-btn sh-qtyBtn"
-                style={{ cursor: quantity >= maxQtyUi ? "not-allowed" : "pointer", opacity: quantity >= maxQtyUi ? 0.6 : 1 }}
-              >
-                +
-              </button>
-              {typeof selectedVariant?.quantityAvailable === "number" ? (
-                <div style={{ fontSize: 12, color: "var(--muted-fg)", marginLeft: 6, fontWeight: 800 }}>
-                  {selectedVariant.quantityAvailable} in stock
-                </div>
-              ) : null}
+            <div className="om-pdp-meta">
+              <div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg>
+                {canBuy ? "In stock — ready to ship" : "Currently sold out"}
+              </div>
+              <div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" /></svg>
+                Secure, encrypted checkout
+              </div>
             </div>
 
-            <div style={{ marginTop: 12, fontSize: 12, color: "#666" }}>
-              Variant GID: <code>{selectedVariant?.id ?? "—"}</code>
-            </div>
           </div>
-        </div>
-      </div>
+        </section>
+
+        {product.description ? (
+          <section className="om-shell om-product-story" aria-labelledby="om-product-story-title">
+            <h2 id="om-product-story-title">About this product</h2>
+            <p>{product.description}</p>
+          </section>
+        ) : null}
+
+        {/* Related */}
+        {related.length > 0 ? (
+          <section className="om-shell om-section">
+            <div className="om-section-head">
+              <h2 className="om-serif">You may also like</h2>
+              <Link to="/shop">Shop all</Link>
+            </div>
+            <div className="om-prod-grid">
+              {related.map((p) => (
+                <Link key={p.id} to={`/products/${encodeURIComponent(p.handle)}`} className="om-prod">
+                  <div className="om-prod-img">
+                    {p.images?.[0]?.url ? (
+                      <img src={p.images[0].url} alt={p.images[0].altText ?? p.title} />
+                    ) : null}
+                  </div>
+                  <div className="om-prod-body">
+                    <span className="om-prod-name">{p.title}</span>
+                    <span className="om-prod-price om-serif">
+                      {formatMoney(Number(p.price?.min?.amount ?? 0), p.price?.min?.currencyCode ?? "USD")}
+                    </span>
+                  </div>
+                  <span className="om-prod-shop">View product</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </main>
+
+      <StoreFooter />
     </div>
   );
 }
-

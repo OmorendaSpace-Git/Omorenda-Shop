@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useCart } from "../cart/useCart";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "../auth/useAuth";
 import { AccountMenu } from "./AccountMenu";
 import { Header } from "./Header";
 
@@ -27,7 +27,7 @@ export function SiteHeader({
       left={left}
       right={
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <Link to="/" className="sh-btn sh-menuLink" style={{ textDecoration: "none" }}>
+          <Link to="/shop" className="sh-btn sh-menuLink" style={{ textDecoration: "none" }}>
             Shop
           </Link>
           <Link to="/bowls" className="sh-btn sh-menuLink" style={{ textDecoration: "none" }}>

@@ -9,7 +9,7 @@ export type OrderStatus =
 
 export type OrderItem = {
   id: string;
-  shopifyVariantGid: string;
+  shopifyVariantGid: string | null;
   title: string | null;
   sku: string | null;
   quantity: number;
@@ -42,5 +42,11 @@ export async function listOrders(): Promise<Order[]> {
   const url = `${API_BASE_URL}/orders`;
   const json = await fetchJson<{ orders: Order[] }>(url);
   return json.orders ?? [];
+}
+
+export async function hideOrderFromHistory(id: string): Promise<void> {
+  await fetchJson<{ hidden: true }>(`${API_BASE_URL}/orders/${encodeURIComponent(id)}/history`, {
+    method: "DELETE",
+  });
 }
 

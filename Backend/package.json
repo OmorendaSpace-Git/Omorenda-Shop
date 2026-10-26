@@ -6,6 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "stripe:listen": "node scripts/stripe-listen.cjs",
     "worker": "tsx watch src/workers/mintWorker.ts",
     "worker:start": "node dist/workers/mintWorker.js",
     "build": "tsc",

@@ -1,18 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import * as authApi from "../api/auth";
 import { AUTH_SESSION_EXPIRED_EVENT } from "../api/client";
-
-type AuthContextValue = {
-  user: authApi.AuthUser | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  logout: () => Promise<void>;
-};
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+import { clearPending } from "../api/zklogin";
+import { AuthContext, type AuthContextValue } from "./useAuth";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<authApi.AuthUser | null>(() => authApi.getStoredUser());
+  const [user, setUser] = useState<authApi.AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -22,7 +15,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const u = await authApi.me();
         if (!cancelled) setUser(u);
       } catch {
-        if (!cancelled) setUser(authApi.getStoredUser());
+        if (!cancelled) setUser(null);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -43,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await authApi.logout();
+    clearPending();
     setUser(null);
   }, []);
 
@@ -57,11 +51,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
 }
 

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { completeGoogleZkLogin, readPending } from "../api/zklogin";
-import { SiteHeader } from "../components/SiteHeader";
+import { StoreHeader } from "../components/StoreHeader";
+import { StoreFooter } from "../components/StoreFooter";
 
 type State =
   | { kind: "loading" }
@@ -16,17 +17,17 @@ function parseHashIdToken(): string | null {
 }
 
 export function GoogleCallbackPage() {
-  const [state, setState] = useState<State>({ kind: "loading" });
+  const idToken = parseHashIdToken();
+  const [state, setState] = useState<State>(() => idToken
+    ? { kind: "loading" }
+    : { kind: "error", message: "Google sign-in did not return an id_token." });
+  const started = useRef(false);
 
   useEffect(() => {
-    const idToken = parseHashIdToken();
-    if (!idToken) {
-      setState({
-        kind: "error",
-        message: "Google sign-in did not return an id_token.",
-      });
-      return;
-    }
+    if (started.current) return;
+    started.current = true;
+
+    if (!idToken) return;
 
     (async () => {
       try {
@@ -44,25 +45,32 @@ export function GoogleCallbackPage() {
         });
       }
     })();
-  }, []);
+  }, [idToken]);
 
   return (
-    <div className="sh-container">
-      <SiteHeader pageTitle="Signing you in…" />
-      {state.kind === "loading" ? (
-        <p style={{ color: "var(--muted-fg)" }}>Completing sign-in with Google…</p>
-      ) : state.kind === "done" ? (
-        <p style={{ color: "var(--fg)", fontWeight: 900 }}>Signed in. Redirecting…</p>
-      ) : (
-        <div>
-          <p style={{ color: "crimson" }}>{state.message}</p>
-          <p>
-            <a href="/login" style={{ color: "var(--fg)", fontWeight: 900 }}>
-              Try again
-            </a>
-          </p>
+    <div className="om-page">
+      <StoreHeader announce="Wild-harvested Himalayan botanicals — shipped worldwide." />
+      <main className="om-main om-login-main">
+        <div className="om-shell om-login-content" role="status" aria-live="polite">
+          <h1>Sign in</h1>
+          {state.kind === "error" ? (
+            <>
+              <p>We couldn’t complete your sign-in.</p>
+              <p className="om-login-error">{state.message}</p>
+              <a href="/login" className="sh-btn sh-btnPrimary om-login-retry">Try again</a>
+            </>
+          ) : (
+            <>
+              <p>Continue with Google to access your account.</p>
+              <div className="om-login-progress">
+                <span className="om-login-spinner" aria-hidden="true" />
+                {state.kind === "done" ? "Signed in. Redirecting…" : "Signing you in…"}
+              </div>
+            </>
+          )}
         </div>
-      )}
+      </main>
+      <StoreFooter />
     </div>
   );
 }

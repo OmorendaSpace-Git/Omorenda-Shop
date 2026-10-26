@@ -1,22 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { SiteHeader } from "../components/SiteHeader";
+import { StoreHeader } from "../components/StoreHeader";
+import { StoreFooter } from "../components/StoreFooter";
 import { useCart } from "../cart/useCart";
-import { useAuth } from "../auth/AuthContext";
-import { AuthGate } from "../components/AuthGate";
+import { useAuth } from "../auth/useAuth";
 import { API_BASE_URL, ApiError, fetchJson } from "../api/client";
 
-function money(n: number, currency: string) {
-  if (!Number.isFinite(n)) return `0.00 ${currency}`;
-  return `${n.toFixed(2)} ${currency}`;
+function formatMoney(n: number, currency: string) {
+  if (!Number.isFinite(n)) n = 0;
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n);
+  } catch {
+    return `$${n.toFixed(2)}`;
+  }
 }
 
 export function CheckoutPage() {
   const cart = useCart();
   const navigate = useNavigate();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const [showAuth, setShowAuth] = useState(false);
-  const [pendingCheckout, setPendingCheckout] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,8 +36,7 @@ export function CheckoutPage() {
 
   async function checkout() {
     if (!isAuthenticated) {
-      setShowAuth(true);
-      setPendingCheckout(true);
+      navigate("/login", { state: { returnTo: "/checkout" } });
       return;
     }
     if (cart.items.length === 0) return;
@@ -63,181 +64,125 @@ export function CheckoutPage() {
       window.location.href = json.url;
     } catch (e) {
       if (e instanceof ApiError && e.code === "SESSION_EXPIRED") {
-        setPendingCheckout(true);
-        setShowAuth(true);
+        setLoading(false);
+        navigate("/login", { state: { returnTo: "/checkout" } });
+        return;
       }
       setError(e instanceof Error ? e.message : "Checkout failed");
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    if (pendingCheckout && isAuthenticated && !loading) {
-      setPendingCheckout(false);
-      void checkout();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingCheckout, isAuthenticated]);
+  const empty = cart.items.length === 0;
 
   return (
-    <div className="sh-container">
-      <SiteHeader
-        pageTitle="Checkout"
-        left={
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-            <Link to="/" style={{ color: "var(--fg)", textDecoration: "none", fontWeight: 900 }}>
-              ← Continue shopping
-            </Link>
-            <button
-              type="button"
-              onClick={() => cart.clear()}
-              disabled={cart.items.length === 0}
-              className="sh-btn"
-              style={{ cursor: cart.items.length === 0 ? "not-allowed" : "pointer" }}
-            >
+    <div className="om-page">
+      <StoreHeader announce="Wild-harvested Himalayan botanicals — shipped worldwide." />
+
+      <main className="om-main">
+        <div className="om-shell om-cart-head">
+          <h1 className="om-serif">Your cart</h1>
+          {!empty ? (
+            <span className="om-cart-count">
+              {cart.count} {cart.count === 1 ? "item" : "items"}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="om-shell om-cart-toolbar">
+          <Link to="/shop" className="om-continue">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5" /><path d="m11 6-6 6 6 6" /></svg>
+            Continue shopping
+          </Link>
+          {!empty ? (
+            <button type="button" className="om-cart-clear" onClick={() => cart.clear()}>
               Clear cart
             </button>
-            {isAuthenticated ? (
-              <span style={{ fontSize: 12, color: "var(--muted-fg)", fontWeight: 900 }}>
-                {user?.email ?? ""}
-              </span>
-            ) : null}
+          ) : null}
+        </div>
+
+        {error ? (
+          <div className="om-shell">
+            <p className="om-error">{error}</p>
           </div>
-        }
-      />
+        ) : null}
 
-      {error ? <p style={{ color: "crimson" }}>{error}</p> : null}
-
-      {!authLoading && !isAuthenticated && showAuth ? (
-        <div style={{ marginBottom: 12 }}>
-          <AuthGate title="Sign in to checkout" subtitle="Continue with Google to proceed to payment." />
-        </div>
-      ) : null}
-
-      {/* When auth is shown, hide the checkout UI below it */}
-      {!authLoading && !isAuthenticated && showAuth ? null : cart.items.length === 0 ? (
-        <div className="sh-card" style={{ padding: 16 }}>
-          <p style={{ margin: 0, color: "var(--muted-fg)", fontWeight: 800 }}>Your cart is empty.</p>
-          <p style={{ marginTop: 12 }}>
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="sh-btn sh-btnPrimary"
-            >
-              Browse products
-            </button>
-          </p>
-        </div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
-          {cart.items.map((i) => (
-            <article
-              key={i.variantGid}
-              className="sh-card"
-              style={{ padding: 14 }}
-            >
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <div
-                  style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: 12,
-                    background: "rgba(13, 150, 136, 0.06)",
-                    overflow: "hidden",
-                    flex: "0 0 auto",
-                    border: "1px solid rgba(31, 41, 46, 0.08)",
-                  }}
-                >
-                  {i.imageUrl ? (
-                    <img src={i.imageUrl} alt={i.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : null}
-                </div>
-
-                <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-                  <div style={{ fontWeight: 950, color: "var(--fg)" }}>{i.title}</div>
-                  <div style={{ fontSize: 12, color: "var(--muted-fg)", marginTop: 4 }}>
-                    {i.variantTitle} · <code>{i.variantGid}</code>
-                  </div>
-                  <div style={{ marginTop: 6 }}>
-                    <span className={`sh-badge ${i.availableForSale ? "sh-badgeInStock" : "sh-badgeOut"}`}>
-                      {i.availableForSale ? "In stock" : "Sold out"}
-                    </span>
-                  </div>
-                </div>
-
-                <div style={{ flex: "0 0 auto", display: "grid", gap: 8, justifyItems: "end" }}>
-                  <div style={{ fontWeight: 950, color: "var(--fg)" }}>
-                    {money(i.unitAmount * i.quantity, i.currency)}
-                  </div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <button
-                      type="button"
-                      onClick={() => cart.setQuantity(i.variantGid, i.quantity - 1)}
-                      disabled={i.quantity <= 1}
-                      className="sh-btn"
-                      style={{
-                        width: 34,
-                        height: 34,
-                        padding: 0,
-                        borderRadius: 12,
-                        cursor: i.quantity <= 1 ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      −
-                    </button>
-                    <div style={{ minWidth: 22, textAlign: "center", fontWeight: 900 }}>{i.quantity}</div>
-                    <button
-                      type="button"
-                      onClick={() => cart.setQuantity(i.variantGid, i.quantity + 1)}
-                      disabled={i.quantity >= Math.max(1, maxQtyFor(i))}
-                      className="sh-btn"
-                      style={{
-                        width: 34,
-                        height: 34,
-                        padding: 0,
-                        borderRadius: 12,
-                        cursor: i.quantity >= Math.max(1, maxQtyFor(i)) ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      +
-                    </button>
-                  </div>
-                  {typeof i.quantityAvailable === "number" ? (
-                    <div style={{ fontSize: 12, color: "var(--muted-fg)", fontWeight: 800 }}>{i.quantityAvailable} in stock</div>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => cart.remove(i.variantGid)}
-                    className="sh-btn"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            </article>
-          ))}
-
-          <div className="sh-card" style={{ padding: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-              <div style={{ color: "var(--muted-fg)", fontSize: 13, fontWeight: 900 }}>Subtotal (est.)</div>
-              <div style={{ fontWeight: 950, color: "var(--fg)" }}>{money(subtotal, currency)}</div>
+        {empty ? (
+          <div className="om-shell" style={{ paddingBottom: 24 }}>
+            <div className="om-cart-empty">
+              <p>Your cart is empty.</p>
+              <button type="button" className="om-btn om-btn-primary" onClick={() => navigate("/shop")}>
+                Browse products
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => void checkout()}
-              disabled={loading || cart.items.length === 0}
-              className="sh-btn sh-btnPrimary"
-              style={{ width: "100%", marginTop: 12, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.6 : 1 }}
-            >
-              {loading ? "Redirecting…" : "Checkout"}
-            </button>
-            <p style={{ marginTop: 10, fontSize: 12, color: "var(--muted-fg)", fontWeight: 700 }}>
-              Final totals are calculated by the backend using Shopify pricing.
-            </p>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="om-shell om-cart-grid">
+            <div className="om-cart-items">
+              {cart.items.map((i) => {
+                const href = `/products/${encodeURIComponent(i.productHandle)}`;
+                const maxQty = Math.max(1, maxQtyFor(i));
+                return (
+                  <article key={i.variantGid} className="om-citem">
+                    <Link to={href} className="om-citem-media">
+                      {i.imageUrl ? <img src={i.imageUrl} alt={i.title} /> : null}
+                    </Link>
+
+                    <div className="om-citem-body">
+                      <Link to={href} className="om-citem-name">{i.title}</Link>
+                      <span className="om-citem-meta">
+                        {i.variantTitle && i.variantTitle !== "Default Title" ? `${i.variantTitle} · ` : ""}
+                        {formatMoney(i.unitAmount, i.currency)} each
+                      </span>
+                      <button type="button" className="om-citem-remove" onClick={() => cart.remove(i.variantGid)}>
+                        Remove item
+                      </button>
+                    </div>
+
+                    <div className="om-citem-controls">
+                      <span className="om-citem-total om-serif">{formatMoney(i.unitAmount * i.quantity, i.currency)}</span>
+                      <div className="om-qty" role="group" aria-label={`Quantity for ${i.title}`}>
+                        <button
+                          type="button"
+                          aria-label="Decrease quantity"
+                          onClick={() => cart.setQuantity(i.variantGid, i.quantity - 1)}
+                          disabled={i.quantity <= 1}
+                        >
+                          −
+                        </button>
+                        <span className="om-qty-val">{i.quantity}</span>
+                        <button
+                          type="button"
+                          aria-label="Increase quantity"
+                          onClick={() => cart.setQuantity(i.variantGid, i.quantity + 1)}
+                          disabled={i.quantity >= maxQty}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <aside className="om-summary">
+              <h2>Order summary</h2>
+              <div className="om-summary-total">
+                <b>Subtotal</b>
+                <span>{formatMoney(subtotal, currency)}</span>
+              </div>
+              <p className="om-summary-note">Shipping and taxes are calculated at checkout.</p>
+              <button type="button" className="om-checkout-btn" onClick={() => void checkout()} disabled={loading || authLoading}>
+                <span>{loading ? "Opening checkout…" : authLoading ? "Checking account…" : "Continue to checkout"}</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
+              </button>
+            </aside>
+          </div>
+        )}
+      </main>
+
+      <StoreFooter />
     </div>
   );
 }
-

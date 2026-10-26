@@ -209,6 +209,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
             shopifyStatus: "FAILED",
             stripeRefundId: refund.id,
             refundedAt: new Date(),
+            lastError: toErrorMessage(error),
           },
         });
         logger.error(

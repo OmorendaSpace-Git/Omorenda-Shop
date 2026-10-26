@@ -28,12 +28,28 @@ export async function listOrders(req: AuthedRequest, res: Response) {
   const user = req.user;
   if (!user) return void res.status(401).json({ message: "Not authenticated" });
   const orders = await prisma.order.findMany({
-    where: { OR: [{ userId: user.id }, { userId: null, email: user.email }] },
+    where: { hiddenAt: null, OR: [{ userId: user.id }, { userId: null, email: user.email }] },
     orderBy: { createdAt: "desc" },
     select: customerOrderSelect,
     take: 50,
   });
   res.status(200).json({ orders });
+}
+
+export async function hideOrderFromHistory(req: AuthedRequest, res: Response) {
+  const params = parseOrRespond(idSchema, req.params, res);
+  if (!params || !req.user) return;
+
+  const result = await prisma.order.updateMany({
+    where: {
+      id: params.id,
+      hiddenAt: null,
+      OR: [{ userId: req.user.id }, { userId: null, email: req.user.email }],
+    },
+    data: { hiddenAt: new Date() },
+  });
+  if (result.count === 0) return void res.status(404).json({ message: "Purchase not found in your history" });
+  res.status(200).json({ hidden: true });
 }
 
 export async function getOrderById(req: AuthedRequest, res: Response) {

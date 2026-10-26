@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { listOrders, type Order } from "../api/orders";
 import { listMyNfts, type NftCertificate } from "../api/bowls";
-import { SiteHeader } from "../components/SiteHeader";
+import { StoreHeader } from "../components/StoreHeader";
+import { StoreFooter } from "../components/StoreFooter";
 import { useCart } from "../cart/useCart";
 
 const MAX_ATTEMPTS = 60;
@@ -40,10 +41,7 @@ export function SuccessPage() {
   }, []);
 
   useEffect(() => {
-    if (!sessionId) {
-      setState({ kind: "missingParams" });
-      return;
-    }
+    if (!sessionId) return;
 
     async function tick(attempts: number) {
       try {
@@ -95,7 +93,6 @@ export function SuccessPage() {
     }
 
     void tick(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   useEffect(() => {
@@ -106,16 +103,21 @@ export function SuccessPage() {
   }, [state, clearCart]);
 
   return (
-    <div className="sh-container">
-      <SiteHeader
-        pageTitle="Checkout success"
-        left={
-          <Link to="/" style={{ color: "var(--fg)", textDecoration: "none", fontWeight: 900 }}>
-            ← Back to shop
-          </Link>
-        }
-      />
-      {renderBody(state, sessionId)}
+    <div className="om-page">
+      <StoreHeader announce="Wild-harvested Himalayan botanicals — shipped worldwide." />
+      <main className="om-main">
+        <div className="om-shell om-pagehead">
+          <div className="om-pagehead-top">
+            <Link to="/shop" className="om-continue">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5" /><path d="m11 6-6 6 6 6" /></svg>
+              Back to shop
+            </Link>
+          </div>
+          <h1>Order confirmation</h1>
+        </div>
+        <div className="om-shell om-block">{renderBody(sessionId ? state : { kind: "missingParams" }, sessionId)}</div>
+      </main>
+      <StoreFooter />
     </div>
   );
 }
@@ -126,7 +128,7 @@ function renderBody(state: ViewState, sessionId: string) {
       <div>
         <p style={{ color: "crimson" }}>Missing required URL params.</p>
         <p style={{ marginTop: 12 }}>
-          <Link to="/" style={{ color: "var(--fg)", fontWeight: 900 }}>
+          <Link to="/shop" style={{ color: "var(--fg)", fontWeight: 900 }}>
             Back to shop
           </Link>
         </p>

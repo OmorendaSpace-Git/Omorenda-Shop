@@ -1,4 +1,4 @@
-import { API_BASE_URL, fetchJson, resetTokenExpiry } from "./client";
+import { API_BASE_URL, TOKEN_EXPIRY_KEY, fetchJson, resetTokenExpiry } from "./client";
 
 export type AuthUser = { id: string; email: string; hasSuiWallet: boolean };
 
@@ -41,6 +41,7 @@ export function storeUser(user: AuthUser | null) {
     resetTokenExpiry();
   } else {
     window.localStorage.removeItem(AUTH_USER_KEY);
+    window.localStorage.removeItem(TOKEN_EXPIRY_KEY);
     setAuthCookie(false);
   }
 }
@@ -51,14 +52,12 @@ export async function me(): Promise<AuthUser | null> {
     storeUser(json.user);
     return json.user;
   }
+  storeUser(null);
   return null;
 }
 
 export async function logout(): Promise<void> {
-  try {
-    await fetchJson(`${API_BASE_URL}/auth/logout`, { method: "POST" });
-  } finally {
-    storeUser(null);
-  }
+  await fetchJson(`${API_BASE_URL}/auth/logout`, { method: "POST" });
+  storeUser(null);
 }
 

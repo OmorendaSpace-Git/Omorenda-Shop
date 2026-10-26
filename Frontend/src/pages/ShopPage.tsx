@@ -1,10 +1,19 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { SiteHeader } from "../components/SiteHeader";
-import { PastPurchases } from "../components/PastPurchases";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { StoreHeader } from "../components/StoreHeader";
+import { StoreFooter } from "../components/StoreFooter";
 import { useCart } from "../cart/useCart";
-import { useAuth } from "../auth/AuthContext";
 import { fetchProducts, getFirstAvailableVariant, type StoreProduct } from "../shop/products";
+
+function formatPrice(p: StoreProduct) {
+  const amount = Number(p.price?.min?.amount ?? 0);
+  const currency = p.price?.min?.currencyCode ?? "USD";
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+  } catch {
+    return `$${amount.toFixed(2)}`;
+  }
+}
 
 const PRODUCTS_PER_PAGE = 15;
 
@@ -31,7 +40,6 @@ export function ShopPage() {
 
   const navigate = useNavigate();
   const cart = useCart();
-  const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
     try {
@@ -49,7 +57,7 @@ export function ShopPage() {
         setError(null);
 
         if (pageIdx > 0 && !pageCursors[pageIdx]) {
-          let cursors = [...pageCursors];
+          const cursors = [...pageCursors];
           let cursor: string | undefined = cursors[0];
           let lastEndCursor: string | null = null;
           for (let i = 0; i < pageIdx; i++) {
@@ -90,146 +98,143 @@ export function ShopPage() {
   }
 
   return (
-    <div className="sh-container">
-      <SiteHeader pageTitle="Omorenda Shop" subtitle="Products loaded from Shopify via your backend." />
+    <div className="om-page">
+      <StoreHeader announce="Wild-harvested Himalayan botanicals — shipped worldwide." />
 
-      {isAuthenticated && user?.email ? <PastPurchases email={user.email} /> : null}
+      <main className="om-main">
+        <div className="om-shell om-listing-head">
+          <nav className="om-breadcrumb" aria-label="Breadcrumb">
+            <Link to="/">Home</Link>
+            <span>/</span>
+            <span aria-current="page">Shop all</span>
+          </nav>
+          <h1>Shop all</h1>
+          <p>Himalayan herbs, teas and singing bowls, carefully sourced and quality-checked.</p>
+        </div>
 
-      {loading ? (
-        <p style={{ color: "#666" }}>Loading products…</p>
-      ) : error ? (
-        <p style={{ color: "crimson" }}>{error}</p>
-      ) : (
-        <>
-          <div className="sh-gridProducts">
-            {products.map((p) => {
-              const purchasable = p.availableForSale ? getFirstAvailableVariant(p) : null;
-              const soldOut = !p.availableForSale || !purchasable;
-              const variantId = purchasable?.id ?? null;
-              const inCart = variantId ? cart.ids.has(variantId) : false;
-              return (
-                <article key={p.id} className="sh-card sh-cardPad">
-                  <div className="sh-productImage">
-                    {p.images?.[0]?.url ? (
-                      <img src={p.images[0].url} alt={p.images[0].altText ?? p.title} />
-                    ) : (
-                      <div
-                        style={{
-                          height: "100%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#aaa",
-                          fontSize: 12,
-                        }}
-                      >
-                        No image
+        <div className="om-shell om-listing-body">
+          {loading ? (
+            <p className="om-state">Loading products…</p>
+          ) : error ? (
+            <p className="om-state om-state-error">{error}</p>
+          ) : products.length === 0 ? (
+            <p className="om-state">No products found.</p>
+          ) : (
+            <>
+              <div className="om-lgrid">
+                {products.map((p) => {
+                  const purchasable = p.availableForSale ? getFirstAvailableVariant(p) : null;
+                  const soldOut = !p.availableForSale || !purchasable;
+                  const variantId = purchasable?.id ?? null;
+                  const inCart = variantId ? cart.ids.has(variantId) : false;
+                  const href = `/products/${encodeURIComponent(p.handle)}`;
+                  return (
+                    <article key={p.id} className="om-lcard">
+                      <Link to={href} className="om-lcard-media">
+                        {p.images?.[0]?.url ? (
+                          <img src={p.images[0].url} alt={p.images[0].altText ?? p.title} />
+                        ) : (
+                          <span className="om-lcard-noimg">No image</span>
+                        )}
+                        <span className={`om-lcard-badge ${soldOut ? "om-badge-out" : "om-badge-in"}`}>
+                          {soldOut ? "Sold out" : "In stock"}
+                        </span>
+                      </Link>
+
+                      <div className="om-lcard-body">
+                        <Link to={href} className="om-lcard-name">{p.title}</Link>
+                        <span className="om-lcard-price om-serif">{formatPrice(p)}</span>
                       </div>
-                    )}
-                  </div>
 
-                  <h2 style={{ fontSize: 14, margin: "12px 0 6px", color: "var(--fg)", fontWeight: 900 }}>{p.title}</h2>
-                  <div className="sh-row">
-                    <span className={`sh-badge ${soldOut ? "sh-badgeOut" : "sh-badgeInStock"}`}>
-                      {soldOut ? "Sold out" : "In stock"}
-                    </span>
-                  </div>
-                  <div className="sh-row" style={{ alignItems: "baseline" }}>
-                    <strong style={{ fontSize: 14, color: "var(--fg)" }}>${Number(p.price?.min?.amount ?? 0).toFixed(2)}</strong>
-                    <span style={{ fontSize: 12, color: "var(--muted-fg)", fontWeight: 800 }}>
-                      {p.price?.min?.currencyCode ?? "USD"}
-                    </span>
-                  </div>
+                      <div className="om-lcard-actions">
+                        <button
+                          type="button"
+                          className={`om-cardbtn ${inCart ? "om-cardbtn-active" : ""}`}
+                          disabled={soldOut || !variantId}
+                          onClick={() => {
+                            if (!purchasable?.id) return;
+                            cart.toggle({
+                              productId: p.id,
+                              productHandle: p.handle,
+                              title: p.title,
+                              imageUrl: p.images?.[0]?.url ?? null,
+                              currency: p.price?.min?.currencyCode ?? "USD",
+                              unitAmount: Number(p.price?.min?.amount ?? 0),
+                              variantGid: purchasable.id,
+                              variantTitle: purchasable.title,
+                              availableForSale: purchasable.availableForSale,
+                              quantityAvailable: typeof purchasable.quantityAvailable === "number" ? purchasable.quantityAvailable : null,
+                            });
+                          }}
+                        >
+                          {inCart ? "Remove" : "Add to cart"}
+                        </button>
+                        <button
+                          type="button"
+                          className="om-cardbtn om-cardbtn-primary"
+                          disabled={soldOut}
+                          onClick={() => {
+                            if (!purchasable?.id) return;
+                            cart.add(
+                              {
+                                productId: p.id,
+                                productHandle: p.handle,
+                                title: p.title,
+                                imageUrl: p.images?.[0]?.url ?? null,
+                                currency: p.price?.min?.currencyCode ?? "USD",
+                                unitAmount: Number(p.price?.min?.amount ?? 0),
+                                variantGid: purchasable.id,
+                                variantTitle: purchasable.title,
+                                availableForSale: purchasable.availableForSale,
+                                quantityAvailable: typeof purchasable.quantityAvailable === "number" ? purchasable.quantityAvailable : null,
+                              },
+                              1,
+                            );
+                            navigate("/checkout");
+                          }}
+                        >
+                          Buy now
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
 
-                  <div className="sh-actionsCompact">
-                    <button type="button" onClick={() => navigate(`/products/${encodeURIComponent(p.handle)}`)} className="sh-btn">
-                      View
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!purchasable?.id) return;
-                        cart.toggle({
-                          productId: p.id,
-                          productHandle: p.handle,
-                          title: p.title,
-                          imageUrl: p.images?.[0]?.url ?? null,
-                          currency: p.price?.min?.currencyCode ?? "USD",
-                          unitAmount: Number(p.price?.min?.amount ?? 0),
-                          variantGid: purchasable.id,
-                          variantTitle: purchasable.title,
-                          availableForSale: purchasable.availableForSale,
-                          quantityAvailable: typeof purchasable.quantityAvailable === "number" ? purchasable.quantityAvailable : null,
-                        });
-                      }}
-                      disabled={soldOut || !variantId}
-                      className="sh-btn"
-                      style={{ background: inCart ? "rgba(24, 149, 136, 0.08)" : "#fff" }}
-                    >
-                      {inCart ? "Remove" : "Add to cart"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!purchasable?.id) return;
-                        cart.add(
-                          {
-                            productId: p.id,
-                            productHandle: p.handle,
-                            title: p.title,
-                            imageUrl: p.images?.[0]?.url ?? null,
-                            currency: p.price?.min?.currencyCode ?? "USD",
-                            unitAmount: Number(p.price?.min?.amount ?? 0),
-                            variantGid: purchasable.id,
-                            variantTitle: purchasable.title,
-                            availableForSale: purchasable.availableForSale,
-                            quantityAvailable: typeof purchasable.quantityAvailable === "number" ? purchasable.quantityAvailable : null,
-                          },
-                          1,
-                        );
-                        navigate("/checkout");
-                      }}
-                      disabled={soldOut}
-                      className="sh-btn sh-btnPrimary sh-actionsBuy"
-                    >
-                      Buy Now
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-
-          {canPrev || canNext ? (
-            <div className="sh-pagination">
-              {canPrev ? (
-                <button type="button" className="sh-btn" onClick={() => goToPage(Math.max(0, pageIdx - 1))}>
-                  ← Prev
-                </button>
-              ) : (
-                <span />
-              )}
-              {canNext ? (
-                <button
-                  type="button"
-                  className="sh-btn"
-                  onClick={() => {
-                    if (!endCursor) return;
-                    setPageCursors((arr) => {
-                      const next = [...arr];
-                      if (!next[pageIdx + 1]) next[pageIdx + 1] = endCursor;
-                      return next;
-                    });
-                    goToPage(pageIdx + 1);
-                  }}
-                >
-                  Next →
-                </button>
+              {canPrev || canNext ? (
+                <div className="om-pagination">
+                  <button
+                    type="button"
+                    className="om-pagebtn"
+                    disabled={!canPrev}
+                    onClick={() => goToPage(Math.max(0, pageIdx - 1))}
+                  >
+                    ← Previous
+                  </button>
+                  <button
+                    type="button"
+                    className="om-pagebtn"
+                    disabled={!canNext}
+                    onClick={() => {
+                      if (!endCursor) return;
+                      setPageCursors((arr) => {
+                        const next = [...arr];
+                        if (!next[pageIdx + 1]) next[pageIdx + 1] = endCursor;
+                        return next;
+                      });
+                      goToPage(pageIdx + 1);
+                    }}
+                  >
+                    Next →
+                  </button>
+                </div>
               ) : null}
-            </div>
-          ) : null}
-        </>
-      )}
+            </>
+          )}
+        </div>
+      </main>
+
+      <StoreFooter />
     </div>
   );
 }

@@ -55,6 +55,24 @@ npm run dev
 
 Backend runs on `http://localhost:8001` by default.
 
+## NFT mint worker (local dev)
+
+In a separate terminal in `Backend`, run:
+
+```bash
+npm run worker
+```
+
+Leave this running alongside the backend, frontend, and Stripe listener. The
+backend queues certificates after payment; the worker submits them to Sui.
+A `PENDING` certificate with zero attempts usually means the worker is absent.
+
+Each bowl serial can be minted only once in the configured Sui collection.
+Resetting local orders or Shopify products does not reset the on-chain collection.
+An already-minted serial needs reconciliation with the existing NFT and owner;
+repeating the transaction cannot create another certificate. For a new test
+collection, deploy and configure a fresh contract before making test purchases.
+
 ## Stripe webhook (local dev)
 
 Your webhook endpoint is:
@@ -63,10 +81,15 @@ Your webhook endpoint is:
 Because Stripe can’t reach `localhost` directly, use Stripe CLI forwarding:
 
 ```bash
-stripe listen --forward-to http://localhost:8001/webhooks/stripe
+npm run stripe:listen
 ```
 
-Copy the printed `whsec_...` value into `STRIPE_WEBHOOK_SECRET` in your `.env`.
+This command uses the backend's `STRIPE_SECRET_KEY` for the CLI, so forwarding
+uses the same test account as checkout even if `stripe login` selected another
+account. It saves the matching listener signing secret to `Backend/.env`.
+Restart the backend after the secret changes and leave the listener terminal open.
+Use `npm run stripe:listen -- --setup-only` to update the secret without starting forwarding.
+Starting the listener does not replay payments completed before it was running.
 
 ## API
 

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { listProducts } from "../controllers/productController";
 import { createCheckoutSession } from "../controllers/checkoutController";
-import { getOrderById, listOrders } from "../controllers/orderController";
+import { getOrderById, hideOrderFromHistory, listOrders } from "../controllers/orderController";
 import { requireAuth } from "../auth/middleware";
 import { bowlRoutes } from "./bowlRoutes";
 import { rateLimit } from "express-rate-limit";
@@ -17,6 +17,7 @@ apiRoutes.get("/products", listProducts);
 apiRoutes.post("/checkout/session", checkoutLimiter, requireAuth, createCheckoutSession);
 apiRoutes.get("/orders", requireAuth, listOrders);
 apiRoutes.get("/orders/:id", requireAuth, getOrderById);
+apiRoutes.delete("/orders/:id/history", requireAuth, hideOrderFromHistory);
 
 apiRoutes.use(bowlRoutes);
 
