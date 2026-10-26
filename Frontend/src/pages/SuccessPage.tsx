@@ -41,10 +41,7 @@ export function SuccessPage() {
   }, []);
 
   useEffect(() => {
-    if (!sessionId) {
-      setState({ kind: "missingParams" });
-      return;
-    }
+    if (!sessionId) return;
 
     async function tick(attempts: number) {
       try {
@@ -96,7 +93,6 @@ export function SuccessPage() {
     }
 
     void tick(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   useEffect(() => {
@@ -119,7 +115,7 @@ export function SuccessPage() {
           </div>
           <h1>Order confirmation</h1>
         </div>
-        <div className="om-shell om-block">{renderBody(state, sessionId)}</div>
+        <div className="om-shell om-block">{renderBody(sessionId ? state : { kind: "missingParams" }, sessionId)}</div>
       </main>
       <StoreFooter />
     </div>

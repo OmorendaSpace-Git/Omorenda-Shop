@@ -68,10 +68,7 @@ export function ProductPage() {
         ? Math.max(0, Math.min(99, Math.trunc(selectedVariant.quantityAvailable)))
         : 99;
   const maxQtyUi = Math.max(1, maxQty);
-
-  useEffect(() => {
-    setQuantity((q) => Math.min(maxQtyUi, Math.max(1, q)));
-  }, [maxQtyUi]);
+  const quantityUi = Math.min(maxQtyUi, Math.max(1, quantity));
 
   const currency = product?.price?.min?.currencyCode ?? "USD";
   const displayAmount = Number(selectedVariant?.price?.amount ?? product?.price?.min?.amount ?? 0);
@@ -97,7 +94,7 @@ export function ProductPage() {
         availableForSale: selectedVariant.availableForSale,
         quantityAvailable: typeof selectedVariant.quantityAvailable === "number" ? selectedVariant.quantityAvailable : null,
       },
-      quantity,
+      quantityUi,
     );
   }
 
@@ -199,17 +196,17 @@ export function ProductPage() {
                 <button
                   type="button"
                   aria-label="Decrease quantity"
-                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  disabled={quantity <= 1}
+                  onClick={() => setQuantity(quantityUi - 1)}
+                  disabled={quantityUi <= 1}
                 >
                   −
                 </button>
-                <span className="om-qty-val">{quantity}</span>
+                <span className="om-qty-val">{quantityUi}</span>
                 <button
                   type="button"
                   aria-label="Increase quantity"
-                  onClick={() => setQuantity((q) => Math.min(maxQtyUi, q + 1))}
-                  disabled={quantity >= maxQtyUi}
+                  onClick={() => setQuantity(quantityUi + 1)}
+                  disabled={quantityUi >= maxQtyUi}
                 >
                   +
                 </button>

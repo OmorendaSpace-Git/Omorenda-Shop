@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useCart } from "../cart/useCart";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "../auth/useAuth";
 import { AccountMenu } from "./AccountMenu";
 import { Header } from "./Header";
 

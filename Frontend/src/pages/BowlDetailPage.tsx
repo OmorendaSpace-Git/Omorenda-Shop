@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { StoreHeader } from "../components/StoreHeader";
 import { StoreFooter } from "../components/StoreFooter";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "../auth/useAuth";
 import { GoogleWalletGate } from "../components/GoogleWalletGate";
 import { BowlAudioPreview } from "../components/BowlAudioPreview";
 import { createBowlCheckoutSession, getBowl, type Bowl } from "../api/bowls";
@@ -10,6 +10,7 @@ import { createBowlCheckoutSession, getBowl, type Bowl } from "../api/bowls";
 export function BowlDetailPage() {
   const { serial: serialParam } = useParams<{ serial: string }>();
   const serial = Number(serialParam);
+  const validSerial = Number.isInteger(serial) && serial >= 1 && serial <= 101;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -21,11 +22,7 @@ export function BowlDetailPage() {
   const [needsGoogle, setNeedsGoogle] = useState(false);
 
   useEffect(() => {
-    if (!Number.isInteger(serial) || serial < 1 || serial > 101) {
-      setError("Invalid serial");
-      setLoading(false);
-      return;
-    }
+    if (!validSerial) return;
     let cancelled = false;
     (async () => {
       try {
@@ -42,7 +39,7 @@ export function BowlDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [serial]);
+  }, [serial, validSerial]);
 
   async function buyNow() {
     if (!bowl) return;
@@ -131,10 +128,10 @@ export function BowlDetailPage() {
           </div>
         ) : null}
 
-        {loading ? (
+        {loading && validSerial ? (
           <p className="om-state">Loading…</p>
-        ) : error ? (
-          <p className="om-shell om-error">{error}</p>
+        ) : !validSerial || error ? (
+          <p className="om-shell om-error">{validSerial ? error : "Invalid serial"}</p>
         ) : !bowl ? (
           <p className="om-state">Bowl not found.</p>
         ) : (

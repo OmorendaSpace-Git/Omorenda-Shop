@@ -17,21 +17,17 @@ function parseHashIdToken(): string | null {
 }
 
 export function GoogleCallbackPage() {
-  const [state, setState] = useState<State>({ kind: "loading" });
+  const idToken = parseHashIdToken();
+  const [state, setState] = useState<State>(() => idToken
+    ? { kind: "loading" }
+    : { kind: "error", message: "Google sign-in did not return an id_token." });
   const started = useRef(false);
 
   useEffect(() => {
     if (started.current) return;
     started.current = true;
 
-    const idToken = parseHashIdToken();
-    if (!idToken) {
-      setState({
-        kind: "error",
-        message: "Google sign-in did not return an id_token.",
-      });
-      return;
-    }
+    if (!idToken) return;
 
     (async () => {
       try {
@@ -49,7 +45,7 @@ export function GoogleCallbackPage() {
         });
       }
     })();
-  }, []);
+  }, [idToken]);
 
   return (
     <div className="om-page">

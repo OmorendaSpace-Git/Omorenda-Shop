@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { StoreHeader } from "../components/StoreHeader";
 import { StoreFooter } from "../components/StoreFooter";
 import { AuthGate } from "../components/AuthGate";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "../auth/useAuth";
 
 export function LoginPage() {
   const { isAuthenticated, isLoading } = useAuth();

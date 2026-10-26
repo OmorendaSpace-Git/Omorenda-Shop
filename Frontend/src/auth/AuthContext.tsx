@@ -1,16 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import * as authApi from "../api/auth";
 import { AUTH_SESSION_EXPIRED_EVENT } from "../api/client";
 import { clearPending } from "../api/zklogin";
-
-type AuthContextValue = {
-  user: authApi.AuthUser | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  logout: () => Promise<void>;
-};
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+import { AuthContext, type AuthContextValue } from "./useAuth";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<authApi.AuthUser | null>(null);
@@ -59,11 +51,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
 }
 

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { StoreHeader } from "../components/StoreHeader";
 import { StoreFooter } from "../components/StoreFooter";
 import { useCart } from "../cart/useCart";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "../auth/useAuth";
 import { API_BASE_URL, ApiError, fetchJson } from "../api/client";
 
 function formatMoney(n: number, currency: string) {

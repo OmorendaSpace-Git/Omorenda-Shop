@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { hideOrderFromHistory, listOrders, type Order, type OrderItem } from "../api/orders";
 import { listMyNfts, type NftCertificate } from "../api/bowls";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "../auth/useAuth";
 import { useCart } from "../cart/useCart";
 import type { CartItem } from "../cart/types";
 import { StoreFooter } from "../components/StoreFooter";

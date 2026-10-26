@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { StoreHeader } from "../components/StoreHeader";
 import { StoreFooter } from "../components/StoreFooter";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "../auth/useAuth";
 import { listMyNfts, type NftCertificate } from "../api/bowls";
 
 function NftShell({ children, subtitle }: { children: ReactNode; subtitle?: string }) {
