@@ -25,4 +25,4 @@ npm install
 npm run dev
 ```
 
-:Hello world:
+:Hello world: 3
