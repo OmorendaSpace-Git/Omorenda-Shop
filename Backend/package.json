@@ -14,6 +14,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "bowls:export": "tsx scripts/export-bowls-to-shopify.ts",
+    "bowls:reconcile": "node dist/scripts/reconcileBowlInventory.js",
     "bowls:audio:upload": "tsx scripts/upload-bowl-audio.ts",
     "bowls:audio:test-products": "tsx scripts/create-audio-test-bowls.ts",
     "bowls:audio:apply-demo": "tsx scripts/apply-bowl-audio-demo-mapping.ts"
