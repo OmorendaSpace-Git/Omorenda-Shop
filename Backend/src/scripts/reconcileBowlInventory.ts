@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { config } from "../config/config";
 import { prisma } from "../config/db";
 import { targetBowlInventoryQuantity } from "../services/bowlInventoryPolicy";
@@ -29,12 +30,16 @@ async function applyInventoryChanges(changes: InventoryChange[], locationId: str
   if (changes.length === 0) return;
   const data = await shopifyAdminGraphql(
     config.shopify.shop,
-    `mutation reconcileBowlInventory($input: InventorySetQuantitiesInput!) {
-      inventorySetQuantities(input: $input) {
+    `mutation reconcileBowlInventory(
+      $input: InventorySetQuantitiesInput!
+      $idempotencyKey: String!
+    ) {
+      inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
         userErrors { code field message }
       }
     }`,
     {
+      idempotencyKey: randomUUID(),
       input: {
         name: "available",
         reason: "correction",
