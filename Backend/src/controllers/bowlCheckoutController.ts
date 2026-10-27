@@ -8,6 +8,7 @@ import { getBowlBySerial, MAX_SERIAL, MIN_SERIAL } from "../services/shopify/bow
 import type { AuthedRequest } from "../auth/middleware";
 import { z } from "zod";
 import { parseOrRespond, trustedRedirectUrl } from "../utils/validation";
+import { isBowlSerialMinted } from "../services/sui/mintState";
 
 const bowlCheckoutSchema = z.object({
   serial: z.number().int().min(MIN_SERIAL).max(MAX_SERIAL),
@@ -57,7 +58,23 @@ export async function createBowlCheckoutSession(req: AuthedRequest, res: Respons
     res.status(404).json({ message: "Bowl not found" });
     return;
   }
-  if (!bowl.available) {
+  let mintedOnChain: boolean;
+  try {
+    // Checkout always bypasses the short storefront cache. A stale chain read
+    // must never allow payment for an already-minted one-of-one bowl.
+    mintedOnChain = await isBowlSerialMinted(serial, { bypassCache: true });
+  } catch (error) {
+    logger.error(
+      { err: error instanceof Error ? error.message : String(error), serial },
+      "[BOWL_CHECKOUT] failed to verify Sui mint state",
+    );
+    res.status(503).json({
+      code: "BOWL_AVAILABILITY_UNAVAILABLE",
+      message: "Unable to verify bowl availability. Please try again.",
+    });
+    return;
+  }
+  if (!bowl.available || mintedOnChain) {
     res.status(409).json({ message: "Bowl already sold" });
     return;
   }

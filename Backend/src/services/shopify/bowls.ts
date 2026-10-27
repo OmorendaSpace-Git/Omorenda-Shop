@@ -33,6 +33,9 @@ export type BowlProduct = {
   price: string;
   currency: string;
   sku: string | null;
+  inventoryItemGid: string;
+  inventoryQuantity: number;
+  inventoryTracked: boolean;
   available: boolean;
 };
 
@@ -92,7 +95,13 @@ type ProductNode = {
   metafields: { edges: Array<{ node: { key: string; value: string } }> };
   variants: {
     edges: Array<{
-      node: { id: string; sku: string | null; price: string; inventoryQuantity: number | null };
+      node: {
+        id: string;
+        sku: string | null;
+        price: string;
+        inventoryQuantity: number | null;
+        inventoryItem: { id: string; tracked: boolean } | null;
+      };
     }>;
   };
 };
@@ -135,7 +144,7 @@ export async function listBowlProducts(opts?: { bypassCache?: boolean }): Promis
               edges { node { key value } }
             }
             variants(first: 1) {
-              edges { node { id sku price inventoryQuantity } }
+              edges { node { id sku price inventoryQuantity inventoryItem { id tracked } } }
             }
           }
         }
@@ -176,7 +185,7 @@ export async function getBowlBySerial(
 
 function toBowlProduct(node: ProductNode, currency: string): BowlProduct | null {
   const variant = node.variants?.edges?.[0]?.node;
-  if (!variant) {
+  if (!variant || !variant.inventoryItem?.id) {
     logger.warn({ productGid: node.id }, "[SHOPIFY][BOWLS] product has no variant; skipping");
     return null;
   }
@@ -219,6 +228,9 @@ function toBowlProduct(node: ProductNode, currency: string): BowlProduct | null 
     return null;
   }
 
+  const inventoryQuantity = Number(variant.inventoryQuantity ?? 0);
+  const inventoryTracked = variant.inventoryItem.tracked === true;
+
   return {
     productGid: node.id,
     variantGid: variant.id,
@@ -235,7 +247,10 @@ function toBowlProduct(node: ProductNode, currency: string): BowlProduct | null 
     price: variant.price,
     currency,
     sku: variant.sku ?? null,
-    available: (variant.inventoryQuantity ?? 0) > 0,
+    inventoryItemGid: variant.inventoryItem.id,
+    inventoryQuantity,
+    inventoryTracked,
+    available: inventoryTracked && inventoryQuantity > 0,
   };
 }
 

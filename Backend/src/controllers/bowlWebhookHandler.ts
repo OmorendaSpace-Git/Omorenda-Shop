@@ -7,6 +7,10 @@ import { enqueueBowlMint } from "../queue/nftMintQueue";
 import { getStripeClient } from "../services/stripe/client";
 import { createShopifyOrder, ShopifyOutOfStockError } from "../services/shopify/admin";
 import { getBowlBySerial, invalidateBowlCache, toMintPayload } from "../services/shopify/bowls";
+import {
+  BowlAlreadyMintedOnChainError,
+  isBowlSerialMinted,
+} from "../services/sui/mintState";
 
 /**
  * Handles a Stripe `checkout.session.completed` event for a bowl purchase.
@@ -125,6 +129,20 @@ export async function handleBowlCheckoutCompleted(
     throw new Error("Internal: order item missing after create");
   }
 
+  // Payment can complete after the checkout-time availability check. Verify
+  // the chain again before creating a Shopify order. A transient Sui failure
+  // is thrown so Stripe retries; a confirmed prior mint is refunded.
+  const mintedOnChain = await isBowlSerialMinted(serial, { bypassCache: true });
+  if (mintedOnChain) {
+    await refundLostOrFailed(
+      order.id,
+      stripePaymentId,
+      serial,
+      new BowlAlreadyMintedOnChainError(serial),
+    );
+    return;
+  }
+
   if (!config.shopify.shop) {
     // Misconfiguration must not refund a paying customer: throw so Stripe
     // redelivers and the PAID order resumes once config is fixed.
@@ -212,7 +230,8 @@ async function refundLostOrFailed(
   serial: number,
   error: unknown,
 ) {
-  const lostRace = error instanceof ShopifyOutOfStockError;
+  const alreadyMinted = error instanceof BowlAlreadyMintedOnChainError;
+  const lostRace = error instanceof ShopifyOutOfStockError || alreadyMinted;
   const errMessage = error instanceof Error ? error.message : String(error);
 
   try {
@@ -232,7 +251,9 @@ async function refundLostOrFailed(
       });
       logger.error(
         { err: errMessage, orderId, serial, refundId: refund.id, lostRace },
-        lostRace
+        alreadyMinted
+          ? "[WEBHOOK][BOWL] bowl already minted on Sui; payment refunded"
+          : lostRace
           ? "[WEBHOOK][BOWL] bowl already sold (lost inventory race); payment refunded"
           : "[WEBHOOK][BOWL] Shopify order creation failed; payment refunded",
       );
