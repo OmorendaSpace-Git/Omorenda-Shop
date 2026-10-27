@@ -50,14 +50,14 @@ export async function mintBowlOnSui(input: MintBowlInput): Promise<MintBowlResul
 
   // A reset local database does not reset the serials already minted on-chain.
   const cap = await client.getObject({
-    id: config.sui.mintCapObjectId,
-    options: { showContent: true },
+    objectId: config.sui.mintCapObjectId,
+    include: { json: true },
   });
-  const content = cap.data?.content;
-  if (content?.dataType !== "moveObject" || !("minted_bitmap" in content.fields)) {
+  const content = cap.object.json;
+  if (!content || !("minted_bitmap" in content)) {
     throw new Error("Could not read the configured MintCap bitmap");
   }
-  const bitmap = BigInt(String(content.fields.minted_bitmap));
+  const bitmap = BigInt(String(content.minted_bitmap));
   if ((bitmap & (1n << BigInt(input.serial - 1))) !== 0n) {
     throw new BowlAlreadyMintedError(input.serial);
   }
@@ -85,26 +85,25 @@ export async function mintBowlOnSui(input: MintBowlInput): Promise<MintBowlResul
   const result = await client.signAndExecuteTransaction({
     transaction: tx,
     signer: keypair,
-    options: { showEffects: true, showEvents: true, showObjectChanges: true },
+    include: { effects: true, events: true, objectTypes: true },
   });
 
-  if (result.effects?.status?.status !== "success") {
+  const executed = result.Transaction ?? result.FailedTransaction;
+  if (!executed.status.success) {
     throw new Error(
-      `Sui mint tx failed: ${result.effects?.status?.error ?? "unknown error"}`,
+      `Sui mint tx failed: ${JSON.stringify(executed.status.error)}`,
     );
   }
 
-  type ObjectChange = { type: string; objectType?: string; objectId?: string };
-  const created = (result.objectChanges ?? []).find(
-    (c: ObjectChange) =>
-      c.type === "created" &&
-      typeof c.objectType === "string" &&
-      c.objectType.endsWith("::singing_bowl::SingingBowl"),
-  ) as ObjectChange | undefined;
+  const created = executed.effects?.changedObjects.find(
+    change =>
+      change.idOperation === "Created" &&
+      executed.objectTypes?.[change.objectId]?.endsWith("::singing_bowl::SingingBowl"),
+  );
   const suiObjectId = created?.objectId;
   if (!suiObjectId) {
     throw new Error("Sui mint tx succeeded but no SingingBowl object change found");
   }
 
-  return { suiObjectId, mintTxDigest: result.digest, sponsorAddress: sponsor };
+  return { suiObjectId, mintTxDigest: executed.digest, sponsorAddress: sponsor };
 }

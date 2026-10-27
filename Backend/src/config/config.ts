@@ -18,8 +18,8 @@ const SUI_NETWORK = (process.env.SUI_NETWORK ?? "testnet") as
   | "localnet";
 
 const DEFAULT_SUI_RPC: Record<string, string> = {
-  testnet: "https://sui-testnet-rpc.publicnode.com",
-  mainnet: "https://sui-mainnet-rpc.publicnode.com",
+  testnet: "https://fullnode.testnet.sui.io:443",
+  mainnet: "https://fullnode.mainnet.sui.io:443",
   devnet: "https://fullnode.devnet.sui.io:443",
   localnet: "http://127.0.0.1:9000",
 };
