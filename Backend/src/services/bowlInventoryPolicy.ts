@@ -20,3 +20,16 @@ export function targetBowlInventoryQuantity(
   if (mintedOnChain) return 0;
   return currentQuantity > 0 ? 1 : 0;
 }
+
+export function targetBowlInventoryQuantities(
+  currentQuantities: number[],
+  mintedOnChain: boolean,
+  preferredIndex = -1,
+): number[] {
+  if (mintedOnChain) return currentQuantities.map(() => 0);
+  const keeperIndex =
+    preferredIndex >= 0 && currentQuantities[preferredIndex] > 0
+      ? preferredIndex
+      : currentQuantities.findIndex(quantity => quantity > 0);
+  return currentQuantities.map((_quantity, index) => (index === keeperIndex ? 1 : 0));
+}

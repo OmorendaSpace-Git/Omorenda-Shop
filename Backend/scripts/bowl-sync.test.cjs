@@ -3,6 +3,7 @@ const test = require("node:test");
 
 const {
   isBowlPurchasable,
+  targetBowlInventoryQuantities,
   targetBowlInventoryQuantity,
 } = require("../dist/services/bowlInventoryPolicy.js");
 const { serialIsMintedInBitmap } = require("../dist/services/sui/mintState.js");
@@ -25,6 +26,13 @@ test("reconciliation zeroes minted bowls and caps unminted stock at one", () => 
 
 test("reconciliation never reopens zero-stock unminted bowls", () => {
   assert.equal(targetBowlInventoryQuantity(0, false), 0);
+});
+
+test("location reconciliation leaves exactly one available unit", () => {
+  assert.deepEqual(targetBowlInventoryQuantities([4, 6], false), [1, 0]);
+  assert.deepEqual(targetBowlInventoryQuantities([4, 6], false, 1), [0, 1]);
+  assert.deepEqual(targetBowlInventoryQuantities([4, 6], true, 1), [0, 0]);
+  assert.deepEqual(targetBowlInventoryQuantities([0, 0], false), [0, 0]);
 });
 
 test("MintCap bitmap checks use one-based bowl serials", () => {
